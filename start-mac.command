@@ -8,6 +8,12 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
+PASSAGEM_NODE_MAJOR=$(node -p 'Number(process.versions.node.split(".")[0])')
+if [[ "$PASSAGEM_NODE_MAJOR" -lt 20 ]]; then
+  osascript -e 'display alert "Node.js precisa ser atualizado" message "O Passagem UTI requer Node.js 20 ou mais recente." as critical'
+  exit 1
+fi
+
 node server.mjs &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT INT TERM

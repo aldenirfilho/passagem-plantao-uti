@@ -2,7 +2,7 @@
 
 Aplicativo local-first para transformar material clínico bruto em uma passagem de plantão estruturada para uma UTI adulta com dez leitos.
 
-## O que a versão 3 entrega
+## O que a versão 4 entrega
 
 - **10 baterias assistenciais:** L1 a L10 mostram o percentual de preparo de cada leito.
 - **10 tópicos fixos:** o GPT organiza somente os fatos fornecidos e sinaliza dados ausentes.
@@ -10,6 +10,9 @@ Aplicativo local-first para transformar material clínico bruto em uma passagem 
 - **Checklist editável:** pendências com prioridade, prazo/gatilho e status de conclusão.
 - **Cabeçalho do plantão:** ID, nome, CRM, cidade, hospital, UTI, turno e data.
 - **Saídas rápidas:** copiar um leito, copiar o plantão inteiro, imprimir e exportar JSON.
+- **Cockpit claro, escuro ou automático:** a preferência visual fica salva somente neste navegador.
+- **Central de notificações local:** reúne renderizações, alertas e lacunas sinalizados pela IA, pendências altas, read-back e resumo do Turbo, com salto direto ao leito.
+- **Identidade aeroespacial:** logotipo com dez módulos, ícones SVG locais e interface Turbo TEMI Premium.
 - **Chave protegida:** a chave da OpenAI fica no serviço local e nunca é enviada ao JavaScript do navegador.
 
 ### Cinco ferramentas novas para o plantonista
@@ -22,14 +25,17 @@ Aplicativo local-first para transformar material clínico bruto em uma passagem 
 
 O modo Turbo reutiliza a mesma `OPENAI_API_KEY`; nenhuma segunda chave é necessária. Como cada leito novo pode gerar uma chamada cobrada pela API, o aplicativo mostra uma confirmação antes de iniciar o lote.
 
+A Central é uma memória operacional derivada do que foi registrado no aplicativo. Ela não recebe sinais de monitores, não executa vigilância clínica e não substitui alarmes institucionais.
+
 ## Iniciar no Mac
 
 Requisitos: macOS e Node.js 20 ou mais recente.
 
-1. Descompacte o pacote da chave dentro de `Documentos`. O arquivo deve terminar neste caminho:
+1. Mantenha a mesma chave já instalada. O arquivo deve existir em um destes caminhos (o servidor procura os dois automaticamente):
 
    ```text
    ~/Documents/API KEY/passagem-plantao-uti/.env
+   ~/Documentos/API KEY/passagem-plantao-uti/.env
    ```
 
 2. No Terminal, entre na pasta do aplicativo e execute:
@@ -47,6 +53,8 @@ chmod +x start-mac.command
 ./start-mac.command
 ```
 
+Tutorial completo: abra `tutorial.html` com o aplicativo em execução ou use o botão **Tutorial** no cabeçalho. A versão para impressão fica em `output/pdf/Tutorial_Ilustrado_Passagem_UTI_v4.pdf`.
+
 ## Fluxo recomendado
 
 1. Preencha a identificação do plantonista no topo.
@@ -60,12 +68,15 @@ chmod +x start-mac.command
 9. Peça ao médico receptor para completar o read-back.
 10. Copie ou imprima a passagem.
 
+Limites por análise: até 8 anexos selecionados, 15 MB por arquivo, 22 MB de anexos no total e 120.000 caracteres de texto clínico.
+
 ## Segurança clínica e privacidade
 
 - A ferramenta é apoio à comunicação; não substitui prontuário, prescrição, avaliação à beira-leito ou julgamento médico.
 - A saída deve ser revisada pelo médico antes da transmissão.
 - O aplicativo não inventa deliberadamente dados: campos ausentes devem aparecer como `NÃO INFORMADO`.
 - A classificação de estado produzida pela IA aparece somente como sugestão; ela não altera o estado definido pelo médico.
+- Alertas e lacunas do GPT são rotulados como **sinalizações da IA para revisão médica**, e não como alarmes clínicos.
 - Sugestões de checklist ficam inativas até um médico aceitá-las.
 - Uma resposta da API é descartada se o conteúdo do leito mudar enquanto a análise estiver em andamento.
 - Nenhum anexo é enviado ao GPT até o usuário clicar em **Renderizar**.
@@ -93,8 +104,9 @@ Variáveis opcionais:
 
 ## Arquitetura
 
-- `index.html`, `styles.css`, `app.js`: interface responsiva, cinco ferramentas operacionais e persistência local.
+- `index.html`, `styles.css`, `app.js`: cockpit responsivo, temas, notificações, cinco ferramentas operacionais e persistência local.
 - `assets/`: logotipo e ícones do aplicativo.
+- `tutorial.html`, `tutorial.css`, `output/pdf/`: manual ilustrado navegável e versão para impressão.
 - `server.mjs`: servidor local, leitura segura da chave e integração com a Responses API.
 - `tests/server.test.mjs`: contrato de dez tópicos, request multimodal e health check.
 

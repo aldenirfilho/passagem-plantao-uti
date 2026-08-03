@@ -18,6 +18,9 @@ const MAX_FILE_SIZE = 15 * 1024 * 1024;
 const MAX_ANALYSIS_SIZE = 22 * 1024 * 1024;
 const MAX_CLINICAL_TEXT = 120_000;
 const BATCH_CONCURRENCY = 3;
+const MAX_NOTIFICATIONS = 200;
+const VALID_THEMES = new Set(["system", "light", "dark"]);
+const VALID_NOTIFICATION_SEVERITIES = new Set(["info", "attention", "success", "error"]);
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -67,7 +70,7 @@ function newBed(index) {
 
 function newState() {
   return {
-    version: 3,
+    version: 4,
     activeBedId: "L1",
     activeTab: "render",
     settings: {
@@ -79,8 +82,10 @@ function newState() {
       unit: "UTI 1",
       shift: "DIURNO",
       date: localISODate(),
+      theme: "system",
     },
     beds: Array.from({ length: 10 }, (_, index) => newBed(index + 1)),
+    notifications: [],
     savedAt: null,
   };
 }
@@ -94,6 +99,8 @@ let analysisInProgress = false;
 const activeRequestControllers = new Set();
 let commandSelection = 0;
 let visibleCommands = [];
+let notificationFilter = "all";
+const systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
 function requestToPromise(request) {
   return new Promise((resolve, reject) => {
@@ -134,8 +141,11 @@ async function loadState() {
   state = {
     ...newState(),
     ...saved,
-    version: 3,
+    version: 4,
     settings: { ...newState().settings, ...(saved.settings || {}) },
+    notifications: Array.isArray(saved.notifications)
+      ? saved.notifications.map(normalizeNotification).filter(Boolean).slice(-MAX_NOTIFICATIONS)
+      : [],
     beds: Array.from({ length: 10 }, (_, index) => ({
       ...newBed(index + 1),
       ...(saved.beds[index] || {}),
@@ -151,6 +161,197 @@ async function loadState() {
       readback: { ...newReadback(), ...(saved.beds[index]?.readback || {}) },
     })),
   };
+}
+
+function normalizeNotification(item) {
+  if (!item || typeof item !== "object" || !item.title) return null;
+  return {
+    id: String(item.id || crypto.randomUUID()),
+    type: String(item.type || "system"),
+    severity: VALID_NOTIFICATION_SEVERITIES.has(item.severity) ? item.severity : "info",
+    title: String(item.title).slice(0, 160),
+    body: String(item.body || "").slice(0, 500),
+    bedId: /^L(?:10|[1-9])$/.test(String(item.bedId || "")) ? String(item.bedId) : null,
+    tab: ["render", "vault", "checklist"].includes(item.tab) ? item.tab : "render",
+    createdAt: item.createdAt || new Date().toISOString(),
+    readAt: item.readAt || null,
+    dedupeKey: item.dedupeKey ? String(item.dedupeKey) : null,
+    source: String(item.source || "registro-local"),
+  };
+}
+
+function addNotification(input, { save = true } = {}) {
+  const item = normalizeNotification({
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    readAt: null,
+    ...input,
+  });
+  if (!item) return;
+
+  if (item.dedupeKey) {
+    const existingIndex = state.notifications.findIndex((candidate) => candidate.dedupeKey === item.dedupeKey);
+    if (existingIndex >= 0) state.notifications.splice(existingIndex, 1);
+  }
+  state.notifications.push(item);
+  state.notifications = state.notifications.slice(-MAX_NOTIFICATIONS);
+  renderNotificationIndicator();
+  if ($("#notification-dialog")?.open) renderNotificationCenter();
+  if (save && db) scheduleSave();
+}
+
+function unreadNotificationCount() {
+  return state.notifications.filter((item) => !item.readAt).length;
+}
+
+function renderNotificationIndicator() {
+  const count = unreadNotificationCount();
+  const badge = $("#notification-count");
+  const button = $("#notification-button");
+  if (!badge || !button) return;
+  badge.textContent = count > 99 ? "99+" : String(count);
+  badge.hidden = count === 0;
+  button.setAttribute("aria-label", count
+    ? `Abrir central de notificações, ${count} não lida${count === 1 ? "" : "s"}`
+    : "Abrir central de notificações, nenhuma não lida");
+}
+
+function notificationTimeLabel(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "data não informada";
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return "agora";
+  if (seconds < 3600) return `há ${Math.floor(seconds / 60)} min`;
+  if (seconds < 86_400) return `há ${Math.floor(seconds / 3600)} h`;
+  return formatDateTime(value);
+}
+
+function renderNotificationCenter() {
+  const list = $("#notification-list");
+  if (!list) return;
+  list.replaceChildren();
+  $$('[data-notification-filter]').forEach((button) => {
+    const active = button.dataset.notificationFilter === notificationFilter;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+
+  const items = [...state.notifications]
+    .filter((item) => notificationFilter === "all" || !item.readAt)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "notification-empty";
+    const icon = iconElement("inbox");
+    const copy = document.createElement("p");
+    copy.innerHTML = notificationFilter === "unread"
+      ? "<strong>Tudo revisado.</strong><br />Não há notificações não lidas."
+      : "<strong>Central pronta.</strong><br />Os próximos eventos operacionais aparecerão aqui.";
+    empty.append(icon, copy);
+    list.append(empty);
+    return;
+  }
+
+  items.forEach((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `notification-card severity-${item.severity}${item.readAt ? "" : " is-unread"}`;
+    button.dataset.notificationId = item.id;
+    button.setAttribute("aria-label", `${item.readAt ? "" : "Não lida. "}${item.title}. ${item.body}${item.bedId ? `. Abrir ${item.bedId}.` : ""}`);
+    const icon = iconElement({ info: "info", attention: "alert", success: "check", error: "alert" }[item.severity] || "info");
+    icon.classList.add("notification-card-icon");
+    const copy = document.createElement("span");
+    copy.className = "notification-copy";
+    const title = document.createElement("strong");
+    title.textContent = item.title;
+    const body = document.createElement("span");
+    body.className = "notification-body";
+    body.textContent = item.body;
+    const meta = document.createElement("small");
+    meta.className = "notification-meta";
+    meta.textContent = `${item.bedId ? `${item.bedId} · ` : ""}${notificationTimeLabel(item.createdAt)} · ${item.source}`;
+    copy.append(title, body, meta);
+    const arrow = item.bedId ? iconElement("arrow-right") : document.createElement("span");
+    arrow.classList.add("notification-arrow");
+    button.append(icon, copy, arrow);
+    list.append(button);
+  });
+}
+
+function openNotifications() {
+  const dialog = $("#notification-dialog");
+  renderNotificationCenter();
+  if (!dialog.open) dialog.showModal();
+}
+
+function markAllNotificationsRead() {
+  const changed = unreadNotificationCount();
+  const now = new Date().toISOString();
+  state.notifications.forEach((item) => { if (!item.readAt) item.readAt = now; });
+  renderNotificationIndicator();
+  renderNotificationCenter();
+  scheduleSave();
+  toast(changed ? `${changed} notificação${changed === 1 ? " marcada" : "ões marcadas"} como lida${changed === 1 ? "" : "s"}.` : "Não havia notificações não lidas.");
+}
+
+function clearReadNotifications() {
+  const before = state.notifications.length;
+  state.notifications = state.notifications.filter((item) => !item.readAt);
+  const cleared = before - state.notifications.length;
+  renderNotificationIndicator();
+  renderNotificationCenter();
+  scheduleSave();
+  toast(cleared ? `${cleared} notificação${cleared === 1 ? " removida" : "ões removidas"} do histórico.` : "Não havia notificações lidas para limpar.");
+}
+
+function openNotification(itemId) {
+  const item = state.notifications.find((candidate) => candidate.id === itemId);
+  if (!item) return;
+  item.readAt = item.readAt || new Date().toISOString();
+  renderNotificationIndicator();
+  scheduleSave();
+  if (item.bedId) {
+    $("#notification-dialog").close();
+    navigateToBed(item.bedId, item.tab);
+  } else {
+    renderNotificationCenter();
+  }
+}
+
+function iconElement(name) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.classList.add("ui-icon");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `./assets/icons.svg#icon-${name}`);
+  svg.append(use);
+  return svg;
+}
+
+function resolvedTheme(preference = state.settings.theme) {
+  if (preference === "light" || preference === "dark") return preference;
+  return systemThemeQuery.matches ? "dark" : "light";
+}
+
+function applyTheme(preference = state.settings.theme) {
+  const safePreference = VALID_THEMES.has(preference) ? preference : "system";
+  state.settings.theme = safePreference;
+  const theme = resolvedTheme(safePreference);
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.themePreference = safePreference;
+  const select = $("#theme-select");
+  if (select) select.value = safePreference;
+  const iconUse = $("#theme-icon-use");
+  if (iconUse) iconUse.setAttribute("href", `./assets/icons.svg#icon-${theme === "dark" ? "moon" : "sun"}`);
+  const meta = $('meta[name="theme-color"]');
+  if (meta) meta.content = theme === "dark" ? "#050d18" : "#eef6fb";
+}
+
+function setTheme(preference) {
+  applyTheme(preference);
+  void saveState().catch(() => toast("A aparência foi aplicada, mas não pôde ser salva localmente.", true));
+  const labels = { system: "Sistema", light: "Claro", dark: "Escuro" };
+  toast(`Aparência: ${labels[state.settings.theme]}.`);
 }
 
 function scheduleSave() {
@@ -175,6 +376,12 @@ async function filesForBed(bedId) {
   const transaction = db.transaction("files", "readonly");
   const index = transaction.objectStore("files").index("bedId");
   return requestToPromise(index.getAll(IDBKeyRange.only(bedId)));
+}
+
+async function fileCountForBed(bedId) {
+  const transaction = db.transaction("files", "readonly");
+  const index = transaction.objectStore("files").index("bedId");
+  return requestToPromise(index.count(IDBKeyRange.only(bedId)));
 }
 
 async function putFile(record) {
@@ -225,10 +432,28 @@ function isReadbackConfirmed(bed) {
   return Boolean(bed.readback?.confirmedAt && bed.readback?.contentHash);
 }
 
-function invalidateReadback(bed) {
+function invalidateReadback(bed, reason = "o conteúdo do leito foi alterado") {
   if (!bed.readback) bed.readback = newReadback();
+  const previousConfirmation = bed.readback.confirmedAt;
+  const wasConfirmed = isReadbackConfirmed(bed);
   bed.readback.confirmedAt = null;
   bed.readback.contentHash = "";
+  if (wasConfirmed) {
+    addNotification({
+      type: "readback-invalidated",
+      severity: "attention",
+      title: `${bed.id}: recebimento precisa ser reconfirmado`,
+      body: `O aceite anterior foi invalidado porque ${reason}. Revise as 10 linhas, riscos e pendências.`,
+      bedId: bed.id,
+      tab: "checklist",
+      dedupeKey: `readback-invalidated:${bed.id}:${previousConfirmation}`,
+      source: "regra de segurança",
+    });
+    if ($("#readback-status") && bed.id === state.activeBedId) renderReadback();
+    if ($("#bed-rail")) renderBatteryRail();
+    renderShiftRadar();
+  }
+  return wasConfirmed;
 }
 
 function localDateTimeValue(value = new Date()) {
@@ -255,7 +480,6 @@ function renderBatteryRail() {
     button.dataset.bedId = bed.id;
     button.dataset.acuity = bed.acuity;
     button.dataset.received = String(isReadbackConfirmed(bed));
-    button.setAttribute("role", "listitem");
     button.setAttribute("aria-label", `${bed.id}, ${bed.patientName || "vazio"}, ${charge}% preparado${isReadbackConfirmed(bed) ? ", recebido" : ""}`);
 
     const shell = document.createElement("span");
@@ -307,8 +531,18 @@ function renderWorkspace() {
   renderTimeline();
   renderReadback();
   applyTab(state.activeTab);
-  void renderFiles();
+  if (state.activeTab !== "vault") void renderFileBadge();
   renderBatteryRail();
+}
+
+async function renderFileBadge() {
+  const requestedBedId = state.activeBedId;
+  const count = await fileCountForBed(requestedBedId);
+  if (requestedBedId !== state.activeBedId) return;
+  $("#file-count").textContent = String(count);
+  $("#generate-caption").textContent = count
+    ? `Texto + anexos selecionados no cofre (${count} no total)`
+    : "Texto + anexos do leito";
 }
 
 function renderHandoff() {
@@ -357,13 +591,13 @@ function renderAlerts() {
   bed.alerts.forEach((text) => {
     const alert = document.createElement("div");
     alert.className = "alert-card";
-    alert.textContent = `ALERTA · ${text}`;
+    alert.textContent = `ALERTA SINALIZADO PELA IA · ${text} · requer revisão médica`;
     area.append(alert);
   });
   if (bed.missing.length) {
     const missing = document.createElement("div");
     missing.className = "alert-card is-missing";
-    missing.textContent = `DADOS CRÍTICOS AUSENTES · ${bed.missing.join(" · ")}`;
+    missing.textContent = `LACUNAS SINALIZADAS PELA IA · ${bed.missing.join(" · ")} · requer revisão médica`;
     area.append(missing);
   }
 }
@@ -392,7 +626,7 @@ function renderChecklist() {
       accept.type = "button";
       accept.className = "suggestion-accept";
       accept.dataset.acceptCheck = item.id;
-      accept.textContent = "✓";
+      accept.append(iconElement("check"));
       accept.title = "Aceitar sugestão da IA";
       accept.setAttribute("aria-label", `Aceitar sugestão ${item.text || "da IA"}`);
       firstControl = accept;
@@ -439,7 +673,7 @@ function renderChecklist() {
     remove.type = "button";
     remove.className = "check-remove";
     remove.dataset.removeCheck = item.id;
-    remove.textContent = "×";
+    remove.append(iconElement("close"));
     remove.setAttribute("aria-label", "Excluir pendência");
 
     row.append(firstControl, text, priority, due, remove);
@@ -452,7 +686,10 @@ function renderChecklist() {
   const total = activeItems.length;
   const percent = total ? Math.round((done / total) * 100) : 0;
   $("#check-progress-bar").style.width = `${percent}%`;
-  $("#check-progress-label").textContent = `${done} de ${total} concluídas${suggestions ? ` · ${suggestions} sugestão${suggestions === 1 ? "" : "ões"} aguardando aceite` : ""}`;
+  const progressLabel = `${done} de ${total} concluídas${suggestions ? ` · ${suggestions} sugestão${suggestions === 1 ? "" : "ões"} aguardando aceite` : ""}`;
+  $("#check-progress-label").textContent = progressLabel;
+  $("#check-progress").setAttribute("aria-valuenow", String(percent));
+  $("#check-progress").setAttribute("aria-valuetext", progressLabel);
   $("#check-count").textContent = String(pendingCount(bed));
 }
 
@@ -492,7 +729,7 @@ function renderTimeline() {
     remove.type = "button";
     remove.className = "timeline-remove";
     remove.dataset.removeEvent = event.id;
-    remove.textContent = "×";
+    remove.append(iconElement("close"));
     remove.setAttribute("aria-label", "Excluir atualização");
 
     row.append(meta, text, remove);
@@ -540,7 +777,9 @@ async function renderFiles() {
       const objectUrl = URL.createObjectURL(file.blob);
       image.src = objectUrl;
       image.alt = "Prévia do exame";
-      image.onload = () => URL.revokeObjectURL(objectUrl);
+      const releasePreview = () => setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+      image.onload = releasePreview;
+      image.onerror = releasePreview;
       preview.append(image);
     } else {
       preview.textContent = fileExtension(file.name);
@@ -567,12 +806,14 @@ async function renderFiles() {
     download.type = "button";
     download.dataset.downloadFile = file.id;
     download.title = "Baixar arquivo";
-    download.textContent = "⇩";
+    download.setAttribute("aria-label", `Baixar ${file.name}`);
+    download.append(iconElement("export"));
     const remove = document.createElement("button");
     remove.type = "button";
     remove.dataset.deleteFile = file.id;
     remove.title = "Excluir arquivo";
-    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Excluir ${file.name}`);
+    remove.append(iconElement("trash"));
     controls.append(download, remove);
 
     card.append(preview, info, controls);
@@ -596,6 +837,7 @@ function applyTab(tabName) {
     const isActive = button.dataset.tab === tab;
     button.classList.toggle("is-active", isActive);
     button.setAttribute("aria-selected", String(isActive));
+    button.tabIndex = isActive ? 0 : -1;
   });
 
   known.forEach((name) => {
@@ -604,6 +846,7 @@ function applyTab(tabName) {
     panel.hidden = !isActive;
     panel.classList.toggle("is-active", isActive);
   });
+  if (tab === "vault") void renderFiles();
 }
 
 async function addFiles(fileList) {
@@ -733,7 +976,41 @@ function applyAiResult(bed, result, fingerprint) {
 
   bed.renderFingerprint = fingerprint;
   bed.updatedAt = new Date().toISOString();
-  invalidateReadback(bed);
+  invalidateReadback(bed, "uma nova renderização foi aplicada");
+  addNotification({
+    type: "render-complete",
+    severity: "success",
+    title: `${bed.id}: 10 linhas renderizadas`,
+    body: "A saída está pronta para revisão médica e aceite das sugestões de checklist.",
+    bedId: bed.id,
+    tab: "render",
+    dedupeKey: `render-complete:${bed.id}:${fingerprint}`,
+    source: "GPT + dados registrados",
+  });
+  if (bed.alerts.length) {
+    addNotification({
+      type: "ai-alerts",
+      severity: "attention",
+      title: `${bed.id}: alertas sinalizados pela IA`,
+      body: `${bed.alerts.length} item${bed.alerts.length === 1 ? "" : "s"} exige${bed.alerts.length === 1 ? "" : "m"} revisão médica.`,
+      bedId: bed.id,
+      tab: "render",
+      dedupeKey: `ai-alerts:${bed.id}:${fingerprint}`,
+      source: "sinalização da IA",
+    });
+  }
+  if (bed.missing.length) {
+    addNotification({
+      type: "ai-missing",
+      severity: "attention",
+      title: `${bed.id}: lacunas sinalizadas pela IA`,
+      body: `${bed.missing.length} dado${bed.missing.length === 1 ? "" : "s"} ausente${bed.missing.length === 1 ? "" : "s"} precisa${bed.missing.length === 1 ? "" : "m"} ser conferido${bed.missing.length === 1 ? "" : "s"}.`,
+      bedId: bed.id,
+      tab: "render",
+      dedupeKey: `ai-missing:${bed.id}:${fingerprint}`,
+      source: "sinalização da IA",
+    });
+  }
 }
 
 async function renderBedWithAI(bed, { force = false } = {}) {
@@ -808,6 +1085,18 @@ async function generateHandoff({ force = false } = {}) {
   } catch (error) {
     const message = error.name === "AbortError" ? "Renderização cancelada." : error.message || "Falha na renderização.";
     toast(message, error.name !== "AbortError");
+    if (error.name !== "AbortError") {
+      addNotification({
+        type: "render-error",
+        severity: "error",
+        title: `${bed.id}: análise não concluída`,
+        body: message,
+        bedId: bed.id,
+        tab: "render",
+        dedupeKey: `render-error:${bed.id}:${message}`,
+        source: "sistema local",
+      });
+    }
   } finally {
     showLoading(false);
     analysisInProgress = false;
@@ -872,14 +1161,27 @@ async function renderAllBeds() {
     const skipped = results.filter((result) => result?.status === "skipped").length;
     const failed = results.filter((result) => result?.status === "failed").length;
     const cancelled = cancelRequested || results.some((result) => result?.status === "cancelled");
-    toast(
-      cancelled
-        ? `Turbo cancelado · ${rendered} concluído${rendered === 1 ? "" : "s"}.`
-        : `Turbo finalizado · ${rendered} novo${rendered === 1 ? "" : "s"}, ${skipped} sem mudanças${failed ? `, ${failed} com falha` : ""}.`,
-      Boolean(failed),
-    );
+    const summary = cancelled
+      ? `Turbo cancelado · ${rendered} concluído${rendered === 1 ? "" : "s"}.`
+      : `Turbo finalizado · ${rendered} novo${rendered === 1 ? "" : "s"}, ${skipped} sem mudanças${failed ? `, ${failed} com falha` : ""}.`;
+    toast(summary, Boolean(failed));
+    addNotification({
+      type: "turbo-summary",
+      severity: failed ? "error" : cancelled ? "info" : "success",
+      title: failed ? "Turbo finalizado com atenção" : cancelled ? "Turbo interrompido" : "Turbo finalizado",
+      body: summary,
+      dedupeKey: `turbo-summary:${new Date().toISOString()}`,
+      source: "processamento local",
+    });
   } catch (error) {
     toast(error.message || "O modo Turbo não pôde ser concluído.", true);
+    addNotification({
+      type: "turbo-error",
+      severity: "error",
+      title: "Turbo não concluído",
+      body: error.message || "O processamento em lote não pôde ser concluído.",
+      source: "sistema local",
+    });
   } finally {
     showLoading(false);
     analysisInProgress = false;
@@ -894,6 +1196,8 @@ function updateLoading(title, description) {
 function showLoading(show, copy = {}) {
   const overlay = $("#loading-overlay");
   overlay.hidden = !show;
+  overlay.setAttribute("aria-hidden", String(!show));
+  $("#workspace").setAttribute("aria-busy", String(show));
   $("#generate-handoff").disabled = show;
   $("#render-all").disabled = show;
   clearInterval(activeLoadingTimer);
@@ -982,7 +1286,7 @@ async function exportWorkspace() {
   link.href = url;
   link.download = `passagem-uti-${state.settings.date || localISODate()}.json`;
   link.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
   toast("Plantão exportado em JSON, sem copiar o conteúdo dos anexos.");
 }
 
@@ -1042,6 +1346,16 @@ async function confirmReadback() {
   readback.contentHash = contentHash;
   readback.confirmedAt = new Date().toISOString();
   bed.updatedAt = new Date().toISOString();
+  addNotification({
+    type: "readback-confirmed",
+    severity: "success",
+    title: `${bed.id}: recebimento confirmado`,
+    body: "O aceite local foi registrado após revisão das 10 linhas, riscos e pendências.",
+    bedId: bed.id,
+    tab: "checklist",
+    dedupeKey: `readback-confirmed:${bed.id}:${readback.confirmedAt}`,
+    source: "read-back médico",
+  }, { save: false });
   await saveState();
   renderReadback();
   renderBatteryRail();
@@ -1140,19 +1454,24 @@ function navigateToBed(bedId, tab = "render") {
 function commandCatalog() {
   const bed = activeBed();
   const commands = [
-    { id: "radar", icon: "◉", label: "Abrir radar do plantão", detail: "Prioridades dos 10 leitos", keywords: "radar prioridade risco", run: openRadar },
-    { id: "render", icon: "✦", label: `Renderizar ${bed.id}`, detail: "Gerar as 10 linhas", keywords: "gpt ia gerar", run: () => void generateHandoff() },
-    { id: "copy", icon: "⧉", label: `Copiar ${bed.id}`, detail: "Passagem pronta para colar", keywords: "copiar clipboard", run: () => void copyActiveBed() },
-    { id: "files", icon: "▣", label: `Abrir arquivos do ${bed.id}`, detail: "Exames e documentos", keywords: "pdf foto exames anexo", run: () => { applyTab("vault"); $("#workspace").scrollIntoView({ behavior: "smooth" }); } },
-    { id: "checklist", icon: "✓", label: `Abrir checklist do ${bed.id}`, detail: "Pendências e read-back", keywords: "tarefas pendencias aceite", run: () => { applyTab("checklist"); $("#workspace").scrollIntoView({ behavior: "smooth" }); } },
-    { id: "event", icon: "+", label: `Registrar intercorrência no ${bed.id}`, detail: "Abrir linha do tempo", keywords: "evento exame conduta contato", run: () => { applyTab("render"); $("#timeline-type").value = "INTERCORRÊNCIA"; $("#timeline-text").focus(); } },
-    { id: "high-task", icon: "!", label: `Criar pendência alta no ${bed.id}`, detail: "Ação prioritária editável", keywords: "tarefa urgente alta", run: () => { addChecklistItem({ priority: "alta" }); applyTab("checklist"); setTimeout(() => $(".check-item:last-child .check-text")?.focus(), 0); } },
-    { id: "critical", icon: "▲", label: `Marcar ${bed.id} como crítico`, detail: "Classificação médica manual", keywords: "critico estado gravidade", run: () => { updateBedField("acuity", "CRÍTICO"); $("#bed-acuity").value = "CRÍTICO"; renderBatteryRail(); } },
-    { id: "turbo", icon: "⚡", label: "Turbo: renderizar leitos ocupados", detail: "Até 3 análises simultâneas", keywords: "lote todos velocidade", run: () => void renderAllBeds() },
+    { id: "radar", iconName: "radar", label: "Abrir radar do plantão", detail: "Prioridades dos 10 leitos", keywords: "radar prioridade risco", run: openRadar },
+    { id: "notifications", iconName: "bell", label: "Abrir central de notificações", detail: `${unreadNotificationCount()} não lida${unreadNotificationCount() === 1 ? "" : "s"}`, keywords: "central notificacoes alertas memoria", run: openNotifications },
+    { id: "render", iconName: "sparkles", label: `Renderizar ${bed.id}`, detail: "Gerar as 10 linhas", keywords: "gpt ia gerar", run: () => void generateHandoff() },
+    { id: "copy", iconName: "copy", label: `Copiar ${bed.id}`, detail: "Passagem pronta para colar", keywords: "copiar clipboard", run: () => void copyActiveBed() },
+    { id: "files", iconName: "file", label: `Abrir arquivos do ${bed.id}`, detail: "Exames e documentos", keywords: "pdf foto exames anexo", run: () => { applyTab("vault"); $("#workspace").scrollIntoView({ behavior: "smooth" }); } },
+    { id: "checklist", iconName: "checklist", label: `Abrir checklist do ${bed.id}`, detail: "Pendências e read-back", keywords: "tarefas pendencias aceite", run: () => { applyTab("checklist"); $("#workspace").scrollIntoView({ behavior: "smooth" }); } },
+    { id: "event", iconName: "timeline", label: `Registrar intercorrência no ${bed.id}`, detail: "Abrir linha do tempo", keywords: "evento exame conduta contato", run: () => { applyTab("render"); $("#timeline-type").value = "INTERCORRÊNCIA"; $("#timeline-text").focus(); } },
+    { id: "high-task", iconName: "alert", label: `Criar pendência alta no ${bed.id}`, detail: "Ação prioritária editável", keywords: "tarefa urgente alta", run: () => { addChecklistItem({ priority: "alta" }); applyTab("checklist"); setTimeout(() => $(".check-item:last-child .check-text")?.focus(), 0); } },
+    { id: "critical", iconName: "alert", label: `Marcar ${bed.id} como crítico`, detail: "Classificação médica manual", keywords: "critico estado gravidade", run: () => { updateBedField("acuity", "CRÍTICO"); $("#bed-acuity").value = "CRÍTICO"; renderBatteryRail(); } },
+    { id: "turbo", iconName: "turbo", label: "Turbo: renderizar leitos ocupados", detail: "Até 3 análises simultâneas", keywords: "lote todos velocidade", run: () => void renderAllBeds() },
+    { id: "theme-system", iconName: "sun", label: "Aparência: seguir o sistema", detail: "Alterna automaticamente", keywords: "tema modo sistema claro escuro", run: () => setTheme("system") },
+    { id: "theme-light", iconName: "sun", label: "Aparência: modo claro", detail: "Superfícies claras", keywords: "tema modo claro", run: () => setTheme("light") },
+    { id: "theme-dark", iconName: "moon", label: "Aparência: modo escuro", detail: "Cockpit noturno", keywords: "tema modo escuro noite", run: () => setTheme("dark") },
+    { id: "tutorial", iconName: "book", label: "Abrir tutorial ilustrado", detail: "Uso, segurança e instalação", keywords: "ajuda manual instalar", run: () => { window.location.href = "./tutorial.html"; } },
   ];
   state.beds.forEach((candidate) => commands.push({
     id: `bed-${candidate.id}`,
-    icon: candidate.id,
+    iconText: candidate.id,
     label: `Ir para ${candidate.id}`,
     detail: candidate.patientName || "Leito vazio",
     keywords: `${candidate.id} leito paciente ${candidate.patientName}`,
@@ -1182,7 +1501,8 @@ function renderCommandList(query = "") {
 
     const icon = document.createElement("span");
     icon.className = "command-icon";
-    icon.textContent = command.icon;
+    if (command.iconName) icon.append(iconElement(command.iconName));
+    else icon.textContent = command.iconText || "•";
     const copy = document.createElement("span");
     copy.className = "command-copy";
     const label = document.createElement("strong");
@@ -1228,7 +1548,9 @@ function fileExtension(name) {
 
 function formatDateTime(value) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
 function updateSavedLabel() {
@@ -1238,6 +1560,7 @@ function updateSavedLabel() {
 function toast(message, isError = false) {
   const element = document.createElement("div");
   element.className = `toast${isError ? " is-error" : ""}`;
+  element.setAttribute("role", isError ? "alert" : "status");
   element.textContent = message;
   $("#toast-region").append(element);
   setTimeout(() => element.remove(), 4500);
@@ -1250,9 +1573,27 @@ async function checkApi() {
     const health = await response.json();
     indicator.className = `connection-pill ${health.aiConfigured ? "is-ready" : "is-error"}`;
     $("span:last-child", indicator).textContent = health.aiConfigured ? `GPT pronto · ${health.model}` : "Chave não encontrada";
+    if (!health.aiConfigured) {
+      addNotification({
+        type: "api-status",
+        severity: "error",
+        title: "Chave da API não encontrada",
+        body: "Confira o arquivo .env na pasta API KEY indicada no tutorial; a chave não é exibida pelo aplicativo.",
+        dedupeKey: "api-key-not-found",
+        source: "verificação local",
+      });
+    }
   } catch {
     indicator.className = "connection-pill is-error";
     $("span:last-child", indicator).textContent = "Servidor local indisponível";
+    addNotification({
+      type: "server-status",
+      severity: "error",
+      title: "Servidor local indisponível",
+      body: "Reinicie o aplicativo e verifique o endereço local antes de tentar renderizar.",
+      dedupeKey: "local-server-unavailable",
+      source: "verificação local",
+    });
   }
 }
 
@@ -1262,6 +1603,27 @@ function bindEvents() {
     if (!field) return;
     state.settings[field] = event.target.value;
     scheduleSave();
+  });
+
+  $("#theme-select").addEventListener("change", (event) => setTheme(event.target.value));
+  const handleSystemThemeChange = () => {
+    if (state.settings.theme === "system") applyTheme("system");
+  };
+  if (systemThemeQuery.addEventListener) systemThemeQuery.addEventListener("change", handleSystemThemeChange);
+  else systemThemeQuery.addListener(handleSystemThemeChange);
+
+  $("#notification-button").addEventListener("click", openNotifications);
+  $("#mark-all-notifications").addEventListener("click", markAllNotificationsRead);
+  $("#clear-read-notifications").addEventListener("click", clearReadNotifications);
+  $("#notification-list").addEventListener("click", (event) => {
+    const card = event.target.closest("[data-notification-id]");
+    if (card) openNotification(card.dataset.notificationId);
+  });
+  $(".notification-filters").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-notification-filter]");
+    if (!button) return;
+    notificationFilter = button.dataset.notificationFilter;
+    renderNotificationCenter();
   });
 
   $("#bed-rail").addEventListener("click", (event) => {
@@ -1274,6 +1636,21 @@ function bindEvents() {
     const button = event.target.closest("[data-tab]");
     if (!button) return;
     applyTab(button.dataset.tab);
+    scheduleSave();
+  });
+  $(".tabs").addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    const tabs = $$(".tab");
+    const current = tabs.indexOf(event.target.closest(".tab"));
+    if (current < 0) return;
+    event.preventDefault();
+    const next = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? tabs.length - 1
+        : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+    applyTab(tabs[next].dataset.tab);
+    tabs[next].focus();
     scheduleSave();
   });
 
@@ -1306,20 +1683,21 @@ function bindEvents() {
   $("#checklist-items").addEventListener("input", handleChecklistChange);
   $("#checklist-items").addEventListener("change", handleChecklistChange);
   $("#checklist-items").addEventListener("click", (event) => {
-    const acceptId = event.target.dataset.acceptCheck;
+    const acceptId = event.target.closest("[data-accept-check]")?.dataset.acceptCheck;
     if (acceptId) {
       const item = activeBed().checklist.find((candidate) => candidate.id === acceptId);
       if (!item) return;
       item.suggested = false;
       activeBed().updatedAt = new Date().toISOString();
       invalidateReadback(activeBed());
+      if (item.priority === "alta") notifyHighPriority(activeBed(), item);
       renderChecklist();
       renderBatteryRail();
       scheduleSave();
       toast("Sugestão aceita como pendência ativa.");
       return;
     }
-    const id = event.target.dataset.removeCheck;
+    const id = event.target.closest("[data-remove-check]")?.dataset.removeCheck;
     if (!id) return;
     activeBed().checklist = activeBed().checklist.filter((item) => item.id !== id);
     activeBed().updatedAt = new Date().toISOString();
@@ -1368,8 +1746,8 @@ function bindEvents() {
   });
 
   $("#file-grid").addEventListener("click", async (event) => {
-    const deleteId = event.target.dataset.deleteFile;
-    const downloadId = event.target.dataset.downloadFile;
+    const deleteId = event.target.closest("[data-delete-file]")?.dataset.deleteFile;
+    const downloadId = event.target.closest("[data-download-file]")?.dataset.downloadFile;
     const affectedBedId = state.activeBedId;
     if (deleteId) {
       await deleteFile(deleteId);
@@ -1391,7 +1769,7 @@ function bindEvents() {
       link.href = url;
       link.download = record.name;
       link.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1_000);
     }
   });
 
@@ -1400,7 +1778,7 @@ function bindEvents() {
     addTimelineEvent();
   });
   $("#timeline-list").addEventListener("click", (event) => {
-    const id = event.target.dataset.removeEvent;
+    const id = event.target.closest("[data-remove-event]")?.dataset.removeEvent;
     if (!id) return;
     const bed = activeBed();
     bed.timeline = bed.timeline.filter((item) => item.id !== id);
@@ -1477,13 +1855,37 @@ function bindEvents() {
   $("#print-bed").addEventListener("click", () => window.print());
   $("#clear-bed").addEventListener("click", clearActiveBed);
   window.addEventListener("pagehide", () => void saveState());
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") void saveState();
+  });
 }
 
 function updateBedField(field, value) {
   const bed = activeBed();
+  const previous = bed[field];
   bed[field] = value;
   bed.updatedAt = new Date().toISOString();
-  invalidateReadback(bed);
+  const reasons = {
+    patientName: "a identificação foi alterada",
+    age: "a idade foi alterada",
+    record: "o identificador foi alterado",
+    admission: "a data de admissão foi alterada",
+    acuity: "o estado clínico registrado foi alterado",
+    clinicalText: "o material clínico foi alterado",
+  };
+  invalidateReadback(bed, reasons[field] || "o conteúdo do leito foi alterado");
+  if (field === "acuity" && value === "CRÍTICO" && previous !== value) {
+    addNotification({
+      type: "medical-acuity",
+      severity: "attention",
+      title: `${bed.id}: estado registrado como crítico`,
+      body: "A classificação foi definida manualmente no aplicativo e aparece no Radar do plantão.",
+      bedId: bed.id,
+      tab: "render",
+      dedupeKey: `medical-acuity-critical:${bed.id}:${bed.updatedAt}`,
+      source: "classificação médica",
+    });
+  }
   if (field === "patientName") {
     $("#active-bed-title").textContent = value || "Paciente não identificado";
     renderBatteryRail();
@@ -1495,8 +1897,7 @@ function updateReadbackField(field, value) {
   const bed = activeBed();
   if (!bed.readback) bed.readback = newReadback();
   bed.readback[field] = value;
-  bed.readback.confirmedAt = null;
-  bed.readback.contentHash = "";
+  invalidateReadback(bed, "os dados do read-back foram alterados");
   bed.updatedAt = new Date().toISOString();
   renderReadback();
   renderBatteryRail();
@@ -1510,11 +1911,32 @@ function handleChecklistChange(event) {
   const item = activeBed().checklist.find((candidate) => candidate.id === row.dataset.checkId);
   if (!item) return;
   item[field] = field === "done" ? event.target.checked : event.target.value;
+  if ((field === "priority" && item.priority !== "alta") || (field === "done" && item.done)) {
+    item.highNotifiedAt = null;
+  }
   activeBed().updatedAt = new Date().toISOString();
   invalidateReadback(activeBed());
+  if (!item.suggested && !item.done && item.priority === "alta" && item.text.trim()) {
+    notifyHighPriority(activeBed(), item);
+  }
   if (field === "done" || field === "priority") renderChecklist();
   renderBatteryRail();
   scheduleSave();
+}
+
+function notifyHighPriority(bed, item) {
+  if (item.highNotifiedAt) return;
+  item.highNotifiedAt = new Date().toISOString();
+  addNotification({
+    type: "high-priority-task",
+    severity: "attention",
+    title: `${bed.id}: pendência alta ativa`,
+    body: "Uma ação marcada como prioridade alta requer acompanhamento até a conclusão.",
+    bedId: bed.id,
+    tab: "checklist",
+    dedupeKey: `high-priority-task:${bed.id}:${item.id}`,
+    source: "checklist médico",
+  });
 }
 
 async function clearActiveBed() {
@@ -1533,9 +1955,11 @@ async function init() {
   try {
     db = await openDatabase();
     await loadState();
+    applyTheme();
     bindEvents();
     renderSettings();
     renderWorkspace();
+    renderNotificationIndicator();
     updateSavedLabel();
     await checkApi();
   } catch (error) {

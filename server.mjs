@@ -17,9 +17,15 @@ const PUBLIC_PATHS = new Set([
   "/index.html",
   "/styles.css",
   "/app.js",
+  "/tutorial.html",
+  "/tutorial.css",
   "/assets/logo-passagem-uti.png",
+  "/assets/logo-passagem-uti-aero.png",
+  "/assets/logo-header-256.png",
   "/assets/icon-192.png",
   "/assets/icon-512.png",
+  "/assets/icons.svg",
+  "/output/pdf/Tutorial_Ilustrado_Passagem_UTI_v4.pdf",
 ]);
 
 const MIME_TYPES = {
@@ -33,6 +39,7 @@ const MIME_TYPES = {
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
   ".ico": "image/x-icon",
+  ".pdf": "application/pdf",
 };
 
 export const HANDOFF_SCHEMA = {

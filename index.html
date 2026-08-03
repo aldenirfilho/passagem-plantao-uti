@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
@@ -17,8 +17,8 @@
 
     <header class="app-header">
       <div class="brand-lockup">
-        <div class="brand-mark" aria-hidden="true">
-          <img src="./assets/logo-passagem-uti.png" alt="" />
+        <div class="brand-mark brand-mark-aero" aria-hidden="true">
+          <img src="./assets/logo-header-256.png" alt="" width="128" height="128" />
         </div>
         <div>
           <p class="eyebrow">NEXUS CARE · CONTINUIDADE ASSISTENCIAL</p>
@@ -27,27 +27,50 @@
         </div>
       </div>
 
-      <div class="header-actions">
+      <nav class="header-actions" aria-label="Ferramentas do plantão">
         <div id="api-status" class="connection-pill is-checking" role="status">
           <span class="status-dot"></span>
           <span>Verificando GPT</span>
         </div>
-        <button id="open-radar" class="button button-ghost" type="button">
-          <span aria-hidden="true">◉</span> Radar
+        <label class="theme-control">
+          <svg class="ui-icon" aria-hidden="true"><use id="theme-icon-use" href="./assets/icons.svg#icon-sun"></use></svg>
+          <span class="sr-only">Aparência</span>
+          <select id="theme-select" aria-label="Aparência do aplicativo">
+            <option value="system">Sistema</option>
+            <option value="light">Claro</option>
+            <option value="dark">Escuro</option>
+          </select>
+        </label>
+        <button id="notification-button" class="button button-ghost header-tool" type="button" aria-haspopup="dialog" aria-controls="notification-dialog">
+          <svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-bell"></use></svg>
+          <span class="tool-label">Central</span>
+          <span id="notification-count" class="notification-count" hidden>0</span>
         </button>
-        <button id="open-commands" class="button button-ghost" type="button" aria-keyshortcuts="Control+K Meta+K">
-          <span aria-hidden="true">⌘K</span> Ações
+        <button id="open-radar" class="button button-ghost header-tool" type="button">
+          <svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-radar"></use></svg>
+          <span class="tool-label">Radar</span>
         </button>
-        <button id="render-all" class="button button-turbo" type="button">
-          <span aria-hidden="true">⚡</span> Turbo 10 leitos
+        <button id="open-commands" class="button button-ghost header-tool" type="button" aria-keyshortcuts="Control+K Meta+K">
+          <svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-command"></use></svg>
+          <span class="tool-label">Ações</span><kbd>⌘K</kbd>
         </button>
-        <button id="copy-all" class="button button-ghost" type="button">
-          <span aria-hidden="true">⧉</span> Copiar plantão
+        <button id="render-all" class="button button-turbo header-tool" type="button">
+          <svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-turbo"></use></svg>
+          <span class="tool-label">Turbo 10 leitos</span>
         </button>
-        <button id="export-data" class="button button-ghost" type="button">
-          <span aria-hidden="true">⇩</span> Exportar
+        <button id="copy-all" class="button button-ghost header-tool" type="button">
+          <svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-copy"></use></svg>
+          <span class="tool-label">Copiar plantão</span>
         </button>
-      </div>
+        <button id="export-data" class="button button-ghost header-tool" type="button">
+          <svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-export"></use></svg>
+          <span class="tool-label">Exportar</span>
+        </button>
+        <a class="button button-ghost header-tool" href="./tutorial.html" aria-label="Abrir tutorial ilustrado">
+          <svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-book"></use></svg>
+          <span class="tool-label">Tutorial</span>
+        </a>
+      </nav>
     </header>
 
     <section class="identity-panel" aria-labelledby="identity-title">
@@ -62,27 +85,27 @@
       <div class="identity-grid" id="identity-form">
         <label>
           <span>ID interno</span>
-          <input data-setting="staffId" autocomplete="off" placeholder="Ex.: MAT-2048" />
+          <input data-setting="staffId" type="text" autocomplete="off" placeholder="Ex.: MAT-2048" />
         </label>
         <label class="field-wide">
           <span>Nome do médico</span>
-          <input data-setting="doctorName" autocomplete="name" placeholder="Nome completo" />
+          <input data-setting="doctorName" type="text" autocomplete="name" placeholder="Nome completo" />
         </label>
         <label>
           <span>CRM / UF</span>
-          <input data-setting="crm" autocomplete="off" placeholder="CRM-CE 16587" />
+          <input data-setting="crm" type="text" autocomplete="off" placeholder="CRM-CE 16587" />
         </label>
         <label>
           <span>Cidade / UF</span>
-          <input data-setting="city" autocomplete="address-level2" placeholder="Sobral / CE" />
+          <input data-setting="city" type="text" autocomplete="address-level2" placeholder="Sobral / CE" />
         </label>
         <label class="field-wide">
           <span>Hospital</span>
-          <input data-setting="hospital" autocomplete="organization" placeholder="Hospital / unidade" />
+          <input data-setting="hospital" type="text" autocomplete="organization" placeholder="Hospital / unidade" />
         </label>
         <label>
           <span>UTI nº</span>
-          <input data-setting="unit" autocomplete="off" placeholder="Ex.: UTI 2" />
+          <input data-setting="unit" type="text" autocomplete="off" placeholder="Ex.: UTI 2" />
         </label>
         <label>
           <span>Turno</span>
@@ -113,7 +136,7 @@
           </div>
         </div>
 
-        <div id="bed-rail" class="battery-rail" role="list" aria-label="Seleção dos dez leitos"></div>
+        <div id="bed-rail" class="battery-rail" role="group" aria-label="Seleção dos dez leitos"></div>
       </section>
 
       <section id="workspace" class="workspace" aria-labelledby="active-bed-title">
@@ -137,23 +160,23 @@
                 <option value="CRÍTICO">Crítico</option>
               </select>
             </label>
-            <button id="print-bed" class="icon-button" type="button" title="Imprimir leito" aria-label="Imprimir leito">⎙</button>
-            <button id="clear-bed" class="icon-button danger-button" type="button" title="Limpar leito" aria-label="Limpar leito">⌫</button>
+            <button id="print-bed" class="icon-button" type="button" title="Imprimir leito" aria-label="Imprimir leito"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-print"></use></svg></button>
+            <button id="clear-bed" class="icon-button danger-button" type="button" title="Limpar leito" aria-label="Limpar leito"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-trash"></use></svg></button>
           </div>
         </div>
 
         <div class="patient-strip">
           <label>
             <span>Paciente</span>
-            <input id="patient-name" autocomplete="off" placeholder="Nome ou iniciais conforme protocolo local" />
+            <input id="patient-name" type="text" autocomplete="off" placeholder="Nome ou iniciais conforme protocolo local" />
           </label>
           <label>
             <span>Idade</span>
-            <input id="patient-age" inputmode="numeric" autocomplete="off" placeholder="—" />
+            <input id="patient-age" type="text" inputmode="numeric" autocomplete="off" placeholder="—" />
           </label>
           <label>
             <span>ID / prontuário</span>
-            <input id="patient-record" autocomplete="off" placeholder="Opcional" />
+            <input id="patient-record" type="text" autocomplete="off" placeholder="Opcional" />
           </label>
           <label>
             <span>Admissão</span>
@@ -161,25 +184,25 @@
           </label>
         </div>
 
-        <nav class="tabs" aria-label="Sessões do leito">
-          <button class="tab is-active" data-tab="render" type="button" aria-selected="true">
+        <nav class="tabs" role="tablist" aria-label="Sessões do leito">
+          <button id="tab-button-render" class="tab is-active" data-tab="render" type="button" role="tab" aria-controls="tab-render" aria-selected="true" tabindex="0">
             <span class="tab-step">01</span>
             Renderizar
             <span id="render-count" class="tab-badge">0/10</span>
           </button>
-          <button class="tab" data-tab="vault" type="button" aria-selected="false">
+          <button id="tab-button-vault" class="tab" data-tab="vault" type="button" role="tab" aria-controls="tab-vault" aria-selected="false" tabindex="-1">
             <span class="tab-step">02</span>
-            Exames & arquivos
+            Exames &amp; arquivos
             <span id="file-count" class="tab-badge">0</span>
           </button>
-          <button class="tab" data-tab="checklist" type="button" aria-selected="false">
+          <button id="tab-button-checklist" class="tab" data-tab="checklist" type="button" role="tab" aria-controls="tab-checklist" aria-selected="false" tabindex="-1">
             <span class="tab-step">03</span>
             Checklist
             <span id="check-count" class="tab-badge">0</span>
           </button>
         </nav>
 
-        <div id="tab-render" class="tab-panel is-active" role="tabpanel">
+        <div id="tab-render" class="tab-panel is-active" role="tabpanel" aria-labelledby="tab-button-render">
           <div class="render-layout">
             <section class="source-panel" aria-labelledby="source-title">
               <div class="panel-title-row">
@@ -201,12 +224,12 @@
               </div>
 
               <div class="privacy-note">
-                <strong>⚕ Revisão médica obrigatória</strong>
+                <strong>Revisão médica obrigatória</strong>
                 <p>Confirme a política institucional e a LGPD antes de enviar dados identificáveis. A IA pode omitir ou interpretar incorretamente informações.</p>
               </div>
 
               <button id="generate-handoff" class="button button-primary button-generate" type="button">
-                <span class="generate-icon" aria-hidden="true">✦</span>
+                <svg class="ui-icon generate-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-sparkles"></use></svg>
                 <span><strong>Renderizar em 10 tópicos</strong><small id="generate-caption">Texto + anexos do leito</small></span>
               </button>
             </section>
@@ -217,7 +240,7 @@
                   <p class="eyebrow">SAÍDA EXECUTÁVEL</p>
                   <h3 id="handoff-title">As 10 linhas do próximo plantonista</h3>
                 </div>
-                <button id="copy-bed" class="button button-small" type="button">⧉ Copiar</button>
+                <button id="copy-bed" class="button button-small" type="button"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-copy"></use></svg> Copiar</button>
               </div>
 
               <div id="alerts-area" class="alerts-area" aria-live="polite"></div>
@@ -250,15 +273,15 @@
               </label>
               <label class="timeline-text-field">
                 <span>Registro objetivo</span>
-                <input id="timeline-text" autocomplete="off" maxlength="600" placeholder="Ex.: gasometria coletada; reavaliar às 18h" />
+                <input id="timeline-text" type="text" autocomplete="off" maxlength="600" placeholder="Ex.: gasometria coletada; reavaliar às 18h" />
               </label>
-              <button class="button button-primary" type="submit">＋ Registrar</button>
+              <button class="button button-primary" type="submit"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-timeline"></use></svg> Registrar</button>
             </form>
             <div id="timeline-list" class="timeline-list"></div>
           </section>
         </div>
 
-        <div id="tab-vault" class="tab-panel" role="tabpanel" hidden>
+        <div id="tab-vault" class="tab-panel" role="tabpanel" aria-labelledby="tab-button-vault" hidden>
           <div class="vault-layout">
             <section>
               <div class="panel-title-row">
@@ -269,15 +292,15 @@
                 <p class="local-chip">Somente neste navegador</p>
               </div>
 
-              <label id="drop-zone" class="drop-zone" for="file-input">
+              <label id="drop-zone" class="drop-zone">
                 <input
                   id="file-input"
                   type="file"
                   multiple
                   accept="image/*,.pdf,.txt,.md,.json,.csv,.doc,.docx,.rtf,.odt,.xls,.xlsx,.ppt,.pptx" />
-                <span class="drop-icon" aria-hidden="true">＋</span>
+                <span class="drop-icon" aria-hidden="true"><svg class="ui-icon"><use href="./assets/icons.svg#icon-plus"></use></svg></span>
                 <strong>Arraste arquivos ou clique para selecionar</strong>
-                <small>Até 8 arquivos por análise · máximo recomendado de 12 MB por arquivo</small>
+                <small>Até 8 arquivos por análise · máximo de 15 MB por arquivo e 22 MB no envio</small>
               </label>
             </section>
 
@@ -292,7 +315,7 @@
           </div>
         </div>
 
-        <div id="tab-checklist" class="tab-panel" role="tabpanel" hidden>
+        <div id="tab-checklist" class="tab-panel" role="tabpanel" aria-labelledby="tab-button-checklist" hidden>
           <div class="checklist-layout">
             <section class="checklist-main">
               <div class="panel-title-row">
@@ -300,9 +323,9 @@
                   <p class="eyebrow">EXECUÇÃO DO PRÓXIMO PLANTÃO</p>
                   <h3>Pendências e metas rastreáveis</h3>
                 </div>
-                <button id="add-check" class="button button-small" type="button">＋ Nova pendência</button>
+                <button id="add-check" class="button button-small" type="button"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-plus"></use></svg> Nova pendência</button>
               </div>
-              <div class="check-progress" aria-label="Progresso do checklist">
+              <div id="check-progress" class="check-progress" role="progressbar" aria-label="Progresso do checklist" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="0 de 0 concluídas">
                 <div><span id="check-progress-bar"></span></div>
                 <p id="check-progress-label">0 de 0 concluídas</p>
               </div>
@@ -333,11 +356,11 @@
             <div class="readback-grid">
               <label>
                 <span>Nome do receptor</span>
-                <input id="receiver-name" autocomplete="name" placeholder="Nome completo" />
+                <input id="receiver-name" type="text" autocomplete="name" placeholder="Nome completo" />
               </label>
               <label>
                 <span>CRM / UF</span>
-                <input id="receiver-crm" autocomplete="off" placeholder="CRM-UF 00000" />
+                <input id="receiver-crm" type="text" autocomplete="off" placeholder="CRM-UF 00000" />
               </label>
             </div>
             <div class="readback-checks">
@@ -347,7 +370,7 @@
             </div>
             <div class="readback-actions">
               <p>Qualquer alteração clínica posterior invalida automaticamente este aceite.</p>
-              <button id="confirm-readback" class="button button-primary" type="button">✓ Confirmar recebimento</button>
+              <button id="confirm-readback" class="button button-primary" type="button"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-check"></use></svg> Confirmar recebimento</button>
             </div>
           </section>
         </div>
@@ -370,7 +393,7 @@
           <p class="eyebrow">CENTRAL DOS 10 LEITOS</p>
           <h2 id="radar-title">Radar operacional do plantão</h2>
         </div>
-        <button class="dialog-close" type="button" data-close-dialog="radar-dialog" aria-label="Fechar radar">×</button>
+        <button class="dialog-close" type="button" data-close-dialog="radar-dialog" aria-label="Fechar radar"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-close"></use></svg></button>
       </div>
       <p class="dialog-intro">Ordenado apenas pelos dados registrados: estado médico, alertas, lacunas e pendências.</p>
       <div id="radar-summary" class="radar-summary"></div>
@@ -383,16 +406,38 @@
           <p class="eyebrow">ATALHO GLOBAL · ⌘/CTRL + K</p>
           <h2 id="command-title">Ações rápidas</h2>
         </div>
-        <button class="dialog-close" type="button" data-close-dialog="command-dialog" aria-label="Fechar ações">×</button>
+        <button class="dialog-close" type="button" data-close-dialog="command-dialog" aria-label="Fechar ações"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-close"></use></svg></button>
       </div>
       <label class="command-search-label" for="command-search">Buscar ação ou leito</label>
-      <input id="command-search" class="command-search" autocomplete="off" placeholder="Ex.: L4, copiar, pendência, arquivos…" />
+      <input id="command-search" class="command-search" type="search" autocomplete="off" placeholder="Ex.: L4, copiar, pendência, arquivos…" />
       <div id="command-list" class="command-list" role="listbox" aria-label="Ações disponíveis"></div>
       <p class="command-hint">↑↓ navega · Enter executa · Esc fecha</p>
     </dialog>
 
-    <div id="loading-overlay" class="loading-overlay" hidden>
-      <div class="loading-card" role="status">
+    <dialog id="notification-dialog" class="app-dialog notification-dialog" aria-labelledby="notification-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">MEMÓRIA OPERACIONAL LOCAL</p>
+          <h2 id="notification-title">Central de notificações</h2>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="notification-dialog" aria-label="Fechar central"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-close"></use></svg></button>
+      </div>
+      <p class="notification-disclaimer"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-info"></use></svg> Esta central resume fatos registrados e sinais da IA. Não monitora o paciente e não substitui alarmes, prontuário ou julgamento médico.</p>
+      <div class="notification-toolbar">
+        <div class="notification-filters" role="group" aria-label="Filtrar notificações">
+          <button class="notification-filter is-active" type="button" data-notification-filter="all">Todas</button>
+          <button class="notification-filter" type="button" data-notification-filter="unread">Não lidas</button>
+        </div>
+        <div class="notification-actions">
+          <button id="mark-all-notifications" class="notification-mark-all" type="button">Marcar lidas</button>
+          <button id="clear-read-notifications" class="notification-clear" type="button">Limpar lidas</button>
+        </div>
+      </div>
+      <div id="notification-list" class="notification-list" aria-live="polite"></div>
+    </dialog>
+
+    <div id="loading-overlay" class="loading-overlay" aria-hidden="true" hidden>
+      <div class="loading-card" role="dialog" aria-modal="true" aria-labelledby="loading-title" aria-describedby="loading-description">
         <div class="orbit-loader"><span></span><span></span><span></span></div>
         <p class="eyebrow">DECODIFICANDO O LEITO</p>
         <h2 id="loading-title">Construindo as 10 linhas…</h2>

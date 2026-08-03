@@ -127,6 +127,27 @@ test("servidor nunca publica chave, código interno ou testes", async (t) => {
   }
 });
 
+test("servidor publica cockpit, ícones locais e tutorial ilustrado", async (t) => {
+  const server = createServer();
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const { port } = server.address();
+
+  const expected = [
+    ["/", "text/html"],
+    ["/tutorial.html", "text/html"],
+    ["/tutorial.css", "text/css"],
+    ["/assets/icons.svg", "image/svg+xml"],
+    ["/assets/logo-passagem-uti-aero.png", "image/png"],
+    ["/output/pdf/Tutorial_Ilustrado_Passagem_UTI_v4.pdf", "application/pdf"],
+  ];
+  for (const [pathname, type] of expected) {
+    const response = await fetch(`http://127.0.0.1:${port}${pathname}`);
+    assert.equal(response.status, 200, pathname);
+    assert.match(response.headers.get("content-type") || "", new RegExp(type.replace("+", "\\+")), pathname);
+  }
+});
+
 test("URL percentualmente malformada retorna 400 sem derrubar o servidor", async (t) => {
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
