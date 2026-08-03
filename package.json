@@ -1,0 +1,15 @@
+{
+  "name": "passagem-plantao-uti",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Passagem de plantão local-first para UTIs adultas com 10 leitos e renderização clínica assistida por GPT.",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

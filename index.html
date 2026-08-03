@@ -1,117 +1,306 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Passagem de Plantão UTI</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 16px; background:#f5f7fb; }
-    h1 { margin-bottom: 8px; }
-    .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 12px; }
-    button { padding:10px 14px; border-radius:10px; border:0; cursor:pointer; }
-    .primary { background:#2563eb; color:white; }
-    .secondary { background:#e5e7eb; }
-    .danger { background:#ef4444; color:white; }
-    .card { background:white; border-radius:16px; padding:12px; margin-bottom:12px; box-shadow: 0 6px 16px rgba(0,0,0,.08); }
-    .grid { display:grid; grid-template-columns: repeat(1, 1fr); gap:8px; }
-    @media (min-width: 900px){ .grid{ grid-template-columns: repeat(3, 1fr);} }
-    label { font-size: 12px; color:#374151; }
-    input, textarea { width:100%; padding:8px; border-radius:10px; border:1px solid #d1d5db; }
-    textarea { min-height:60px; }
-    .span-3 { grid-column: 1 / -1; }
-    .footer { display:flex; justify-content:flex-end; }
-  </style>
-</head>
-<body>
-  <h1>Passagem de Plantão UTI</h1>
-  <div class="toolbar">
-    <button class="primary" onclick="addPatient()">Adicionar Paciente</button>
-    <button class="secondary" onclick="exportJSON()">Exportar</button>
-    <button class="secondary" onclick="window.print()">Imprimir</button>
-    <span style="align-self:center;color:#6b7280">Salva automaticamente neste navegador</span>
-  </div>
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#071827" />
+    <meta
+      name="description"
+      content="Passagem de plantão local-first para UTI adulta: 10 leitos, 10 tópicos, anexos e checklist." />
+    <title>Passagem UTI · 10 leitos, 10 linhas</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#workspace">Pular para o leito ativo</a>
 
-  <div id="list"></div>
+    <header class="app-header">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div>
+          <p class="eyebrow">NEXUS CARE · CONTINUIDADE ASSISTENCIAL</p>
+          <h1>PASSAGEM <span>UTI</span></h1>
+          <p class="tagline">10 leitos. 10 linhas. Nenhuma pendência invisível.</p>
+        </div>
+      </div>
 
-<script>
-  const emptyPatient = {
-    leito: "", nome: "", diagnostico: "", comorbidades: "", suporte: "",
-    intercorrencias: "", laboratorio: "", imagem: "", antibioticos: "",
-    profilaxias: "", pendencias: "", condutas: ""
-  };
+      <div class="header-actions">
+        <div id="api-status" class="connection-pill is-checking" role="status">
+          <span class="status-dot"></span>
+          <span>Verificando GPT</span>
+        </div>
+        <button id="copy-all" class="button button-ghost" type="button">
+          <span aria-hidden="true">⧉</span> Copiar plantão
+        </button>
+        <button id="export-data" class="button button-ghost" type="button">
+          <span aria-hidden="true">⇩</span> Exportar
+        </button>
+      </div>
+    </header>
 
-  let patients = JSON.parse(localStorage.getItem("uti_patients") || "null");
-  if (!patients || !Array.isArray(patients) || patients.length === 0) {
-    patients = [ JSON.parse(JSON.stringify(emptyPatient)) ];
-  }
+    <section class="identity-panel" aria-labelledby="identity-title">
+      <div class="section-heading compact">
+        <div>
+          <p class="eyebrow">CABEÇALHO DO PLANTÃO</p>
+          <h2 id="identity-title">Quem entrega · onde · quando</h2>
+        </div>
+        <p class="autosave-label"><span class="pulse-dot"></span> Salvamento local automático</p>
+      </div>
 
-  function save() {
-    localStorage.setItem("uti_patients", JSON.stringify(patients));
-  }
+      <div class="identity-grid" id="identity-form">
+        <label>
+          <span>ID interno</span>
+          <input data-setting="staffId" autocomplete="off" placeholder="Ex.: MAT-2048" />
+        </label>
+        <label class="field-wide">
+          <span>Nome do médico</span>
+          <input data-setting="doctorName" autocomplete="name" placeholder="Nome completo" />
+        </label>
+        <label>
+          <span>CRM / UF</span>
+          <input data-setting="crm" autocomplete="off" placeholder="CRM-CE 16587" />
+        </label>
+        <label>
+          <span>Cidade / UF</span>
+          <input data-setting="city" autocomplete="address-level2" placeholder="Sobral / CE" />
+        </label>
+        <label class="field-wide">
+          <span>Hospital</span>
+          <input data-setting="hospital" autocomplete="organization" placeholder="Hospital / unidade" />
+        </label>
+        <label>
+          <span>UTI nº</span>
+          <input data-setting="unit" autocomplete="off" placeholder="Ex.: UTI 2" />
+        </label>
+        <label>
+          <span>Turno</span>
+          <select data-setting="shift">
+            <option value="DIURNO">Diurno</option>
+            <option value="NOTURNO">Noturno</option>
+            <option value="24 HORAS">24 horas</option>
+          </select>
+        </label>
+        <label>
+          <span>Data</span>
+          <input data-setting="date" type="date" />
+        </label>
+      </div>
+    </section>
 
-  function addPatient() {
-    patients.push(JSON.parse(JSON.stringify(emptyPatient)));
-    render();
-  }
-
-  function removePatient(i) {
-    patients.splice(i, 1);
-    if (patients.length === 0) patients.push(JSON.parse(JSON.stringify(emptyPatient)));
-    render();
-  }
-
-  function update(i, field, value) {
-    patients[i][field] = value;
-    save();
-  }
-
-  function exportJSON() {
-    const data = JSON.stringify(patients, null, 2);
-    const blob = new Blob([data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "passagem_plantao_uti.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function render() {
-    const root = document.getElementById("list");
-    root.innerHTML = "";
-    patients.forEach((p, i) => {
-      const card = document.createElement("div");
-      card.className = "card";
-      card.innerHTML = `
-        <div class="grid">
-          <div><label>Leito</label><input value="${p.leito}" oninput="update(${i}, 'leito', this.value)"></div>
-          <div><label>Nome / Idade</label><input value="${p.nome}" oninput="update(${i}, 'nome', this.value)"></div>
-          <div class="span-3"><label>Diagnóstico</label><input value="${p.diagnostico}" oninput="update(${i}, 'diagnostico', this.value)"></div>
-
-          <div><label>Comorbidades</label><input value="${p.comorbidades}" oninput="update(${i}, 'comorbidades', this.value)"></div>
-          <div><label>Suporte (VM, DVA, O2)</label><input value="${p.suporte}" oninput="update(${i}, 'suporte', this.value)"></div>
-          <div><label>Antibióticos</label><input value="${p.antibioticos}" oninput="update(${i}, 'antibioticos', this.value)"></div>
-
-          <div class="span-3"><label>Intercorrências</label><textarea oninput="update(${i}, 'intercorrencias', this.value)">${p.intercorrencias}</textarea></div>
-
-          <div><label>Laboratório</label><textarea oninput="update(${i}, 'laboratorio', this.value)">${p.laboratorio}</textarea></div>
-          <div><label>Imagem</label><textarea oninput="update(${i}, 'imagem', this.value)">${p.imagem}</textarea></div>
-          <div><label>Profilaxias</label><textarea oninput="update(${i}, 'profilaxias', this.value)">${p.profilaxias}</textarea></div>
-
-          <div class="span-3"><label>Pendências</label><textarea oninput="update(${i}, 'pendencias', this.value)">${p.pendencias}</textarea></div>
-          <div class="span-3"><label>Condutas / Plano</label><textarea oninput="update(${i}, 'condutas', this.value)">${p.condutas}</textarea></div>
-
-          <div class="span-3 footer">
-            <button class="danger" onclick="removePatient(${i})">Remover Paciente</button>
+    <main>
+      <section class="ward-overview" aria-labelledby="ward-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">MAPA OPERACIONAL</p>
+            <h2 id="ward-title">Baterias assistenciais</h2>
+          </div>
+          <div class="ward-metrics" aria-live="polite">
+            <div><strong id="metric-ready">0</strong><span>prontos</span></div>
+            <div><strong id="metric-pending">0</strong><span>pendências</span></div>
+            <div><strong id="metric-critical">0</strong><span>críticos</span></div>
           </div>
         </div>
-      `;
-      root.appendChild(card);
-    });
-    save();
-  }
 
-  render();
-</script>
-</body>
+        <div id="bed-rail" class="battery-rail" role="list" aria-label="Seleção dos dez leitos"></div>
+      </section>
+
+      <section id="workspace" class="workspace" aria-labelledby="active-bed-title">
+        <div class="workspace-header">
+          <div class="active-bed-identity">
+            <div id="active-bed-number" class="active-bed-number">L1</div>
+            <div>
+              <p class="eyebrow">LEITO ATIVO</p>
+              <h2 id="active-bed-title">Paciente não identificado</h2>
+              <p id="active-bed-subtitle">Insira o material clínico para iniciar.</p>
+            </div>
+          </div>
+
+          <div class="workspace-actions">
+            <label class="acuity-control">
+              <span>Estado</span>
+              <select id="bed-acuity">
+                <option value="NÃO DEFINIDO">Não definido</option>
+                <option value="ESTÁVEL">Estável</option>
+                <option value="ATENÇÃO">Atenção</option>
+                <option value="CRÍTICO">Crítico</option>
+              </select>
+            </label>
+            <button id="print-bed" class="icon-button" type="button" title="Imprimir leito" aria-label="Imprimir leito">⎙</button>
+            <button id="clear-bed" class="icon-button danger-button" type="button" title="Limpar leito" aria-label="Limpar leito">⌫</button>
+          </div>
+        </div>
+
+        <div class="patient-strip">
+          <label>
+            <span>Paciente</span>
+            <input id="patient-name" autocomplete="off" placeholder="Nome ou iniciais conforme protocolo local" />
+          </label>
+          <label>
+            <span>Idade</span>
+            <input id="patient-age" inputmode="numeric" autocomplete="off" placeholder="—" />
+          </label>
+          <label>
+            <span>ID / prontuário</span>
+            <input id="patient-record" autocomplete="off" placeholder="Opcional" />
+          </label>
+          <label>
+            <span>Admissão</span>
+            <input id="patient-admission" type="date" />
+          </label>
+        </div>
+
+        <nav class="tabs" aria-label="Sessões do leito">
+          <button class="tab is-active" data-tab="render" type="button" aria-selected="true">
+            <span class="tab-step">01</span>
+            Renderizar
+            <span id="render-count" class="tab-badge">0/10</span>
+          </button>
+          <button class="tab" data-tab="vault" type="button" aria-selected="false">
+            <span class="tab-step">02</span>
+            Exames & arquivos
+            <span id="file-count" class="tab-badge">0</span>
+          </button>
+          <button class="tab" data-tab="checklist" type="button" aria-selected="false">
+            <span class="tab-step">03</span>
+            Checklist
+            <span id="check-count" class="tab-badge">0</span>
+          </button>
+        </nav>
+
+        <div id="tab-render" class="tab-panel is-active" role="tabpanel">
+          <div class="render-layout">
+            <section class="source-panel" aria-labelledby="source-title">
+              <div class="panel-title-row">
+                <div>
+                  <p class="eyebrow">ENTRADA BRUTA</p>
+                  <h3 id="source-title">Cole, dite ou descreva o caso</h3>
+                </div>
+                <span id="source-character-count" class="character-count">0 caracteres</span>
+              </div>
+              <textarea
+                id="clinical-source"
+                class="clinical-source"
+                placeholder="Cole evolução, admissão, intercorrências, prescrição, exames ou seu relato livre. O GPT usará somente o conteúdo fornecido."
+                spellcheck="true"></textarea>
+
+              <div class="source-help">
+                <span>PDF</span><span>FOTO</span><span>TEXTO</span><span>DOCX</span>
+                <p>Anexos adicionados no cofre também podem entrar na análise.</p>
+              </div>
+
+              <div class="privacy-note">
+                <strong>⚕ Revisão médica obrigatória</strong>
+                <p>Confirme a política institucional e a LGPD antes de enviar dados identificáveis. A IA pode omitir ou interpretar incorretamente informações.</p>
+              </div>
+
+              <button id="generate-handoff" class="button button-primary button-generate" type="button">
+                <span class="generate-icon" aria-hidden="true">✦</span>
+                <span><strong>Renderizar em 10 tópicos</strong><small id="generate-caption">Texto + anexos do leito</small></span>
+              </button>
+            </section>
+
+            <section class="handoff-panel" aria-labelledby="handoff-title">
+              <div class="panel-title-row">
+                <div>
+                  <p class="eyebrow">SAÍDA EXECUTÁVEL</p>
+                  <h3 id="handoff-title">As 10 linhas do próximo plantonista</h3>
+                </div>
+                <button id="copy-bed" class="button button-small" type="button">⧉ Copiar</button>
+              </div>
+
+              <div id="alerts-area" class="alerts-area" aria-live="polite"></div>
+              <ol id="handoff-lines" class="handoff-lines"></ol>
+            </section>
+          </div>
+        </div>
+
+        <div id="tab-vault" class="tab-panel" role="tabpanel" hidden>
+          <div class="vault-layout">
+            <section>
+              <div class="panel-title-row">
+                <div>
+                  <p class="eyebrow">COFRE LOCAL DO LEITO</p>
+                  <h3>Exames, imagens e documentos</h3>
+                </div>
+                <p class="local-chip">Somente neste navegador</p>
+              </div>
+
+              <label id="drop-zone" class="drop-zone" for="file-input">
+                <input
+                  id="file-input"
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.txt,.md,.json,.csv,.doc,.docx,.rtf,.odt,.xls,.xlsx,.ppt,.pptx" />
+                <span class="drop-icon" aria-hidden="true">＋</span>
+                <strong>Arraste arquivos ou clique para selecionar</strong>
+                <small>Até 8 arquivos por análise · máximo recomendado de 12 MB por arquivo</small>
+              </label>
+            </section>
+
+            <section>
+              <div class="vault-summary">
+                <div><span>Arquivos</span><strong id="vault-total-files">0</strong></div>
+                <div><span>Volume local</span><strong id="vault-total-size">0 KB</strong></div>
+                <div><span>Selecionados para GPT</span><strong id="vault-selected-files">0</strong></div>
+              </div>
+              <div id="file-grid" class="file-grid"></div>
+            </section>
+          </div>
+        </div>
+
+        <div id="tab-checklist" class="tab-panel" role="tabpanel" hidden>
+          <div class="checklist-layout">
+            <section class="checklist-main">
+              <div class="panel-title-row">
+                <div>
+                  <p class="eyebrow">EXECUÇÃO DO PRÓXIMO PLANTÃO</p>
+                  <h3>Pendências e metas rastreáveis</h3>
+                </div>
+                <button id="add-check" class="button button-small" type="button">＋ Nova pendência</button>
+              </div>
+              <div class="check-progress" aria-label="Progresso do checklist">
+                <div><span id="check-progress-bar"></span></div>
+                <p id="check-progress-label">0 de 0 concluídas</p>
+              </div>
+              <div id="checklist-items" class="checklist-items"></div>
+            </section>
+
+            <aside class="checklist-guide">
+              <p class="eyebrow">ANTILOOP</p>
+              <h3>Uma boa pendência responde:</h3>
+              <ul>
+                <li><strong>O quê?</strong> ação concreta</li>
+                <li><strong>Quando?</strong> horário ou gatilho</li>
+                <li><strong>Por quê?</strong> risco que ela controla</li>
+                <li><strong>Resultado?</strong> como saber que terminou</li>
+              </ul>
+              <p>O GPT pode sugerir itens, mas o médico confirma, edita e conclui cada um.</p>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <div>
+        <strong>PASSAGEM UTI</strong>
+        <span>Ferramenta de apoio · não substitui prontuário, prescrição ou julgamento médico.</span>
+      </div>
+      <p id="last-saved">Ainda não salvo</p>
+    </footer>
+
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+    <div id="loading-overlay" class="loading-overlay" hidden>
+      <div class="loading-card" role="status">
+        <div class="orbit-loader"><span></span><span></span><span></span></div>
+        <p class="eyebrow">DECODIFICANDO O LEITO</p>
+        <h2>Construindo as 10 linhas…</h2>
+        <p>Extraindo fatos, separando riscos e convertendo o plano em execução.</p>
+        <div class="loading-steps"><span class="is-active">Ler</span><span>Organizar</span><span>Renderizar</span></div>
+      </div>
+    </div>
+  </body>
 </html>
