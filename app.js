@@ -15,7 +15,9 @@ const DB_NAME = "passagem_uti_v2";
 const DB_VERSION = 1;
 const STATE_KEY = "workspace";
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
-const MAX_ANALYSIS_SIZE = 28 * 1024 * 1024;
+const MAX_ANALYSIS_SIZE = 22 * 1024 * 1024;
+const MAX_CLINICAL_TEXT = 120_000;
+const BATCH_CONCURRENCY = 3;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -30,6 +32,18 @@ function newHandoff() {
   return HANDOFF_LABELS.map((label, index) => ({ number: index + 1, label, text: "" }));
 }
 
+function newReadback() {
+  return {
+    receiverName: "",
+    receiverCrm: "",
+    linesReviewed: false,
+    risksReviewed: false,
+    tasksUnderstood: false,
+    confirmedAt: null,
+    contentHash: "",
+  };
+}
+
 function newBed(index) {
   return {
     id: `L${index}`,
@@ -41,15 +55,19 @@ function newBed(index) {
     clinicalText: "",
     handoff: newHandoff(),
     checklist: [],
+    timeline: [],
+    readback: newReadback(),
     alerts: [],
     missing: [],
+    aiAcuity: "",
+    renderFingerprint: "",
     updatedAt: null,
   };
 }
 
 function newState() {
   return {
-    version: 2,
+    version: 3,
     activeBedId: "L1",
     activeTab: "render",
     settings: {
@@ -71,6 +89,11 @@ let state = newState();
 let db;
 let saveTimer;
 let activeLoadingTimer;
+let cancelRequested = false;
+let analysisInProgress = false;
+const activeRequestControllers = new Set();
+let commandSelection = 0;
+let visibleCommands = [];
 
 function requestToPromise(request) {
   return new Promise((resolve, reject) => {
@@ -120,14 +143,18 @@ async function loadState() {
         label,
         text: saved.beds[index]?.handoff?.[lineIndex]?.text || "",
       })),
-      checklist: Array.isArray(saved.beds[index]?.checklist) ? saved.beds[index].checklist : [],
+      checklist: Array.isArray(saved.beds[index]?.checklist)
+        ? saved.beds[index].checklist.map((item) => ({ suggested: false, ...item }))
+        : [],
+      timeline: Array.isArray(saved.beds[index]?.timeline) ? saved.beds[index].timeline : [],
+      readback: { ...newReadback(), ...(saved.beds[index]?.readback || {}) },
     })),
   };
 }
 
 function scheduleSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveState, 450);
+  saveTimer = setTimeout(() => void saveState(), 300);
 }
 
 async function saveState() {
@@ -180,7 +207,39 @@ function bedCharge(bed) {
 }
 
 function pendingCount(bed) {
-  return bed.checklist.filter((item) => !item.done).length;
+  return bed.checklist.filter((item) => !item.done && !item.suggested).length;
+}
+
+function bedHasData(bed) {
+  return Boolean(
+    bed.patientName.trim()
+    || bed.clinicalText.trim()
+    || bed.timeline.length
+    || bed.handoff.some((line) => line.text.trim())
+    || bed.checklist.length,
+  );
+}
+
+function isReadbackConfirmed(bed) {
+  return Boolean(bed.readback?.confirmedAt && bed.readback?.contentHash);
+}
+
+function invalidateReadback(bed) {
+  if (!bed.readback) bed.readback = newReadback();
+  bed.readback.confirmedAt = null;
+  bed.readback.contentHash = "";
+}
+
+function localDateTimeValue(value = new Date()) {
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+}
+
+async function sha256(value) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function renderBatteryRail() {
@@ -194,8 +253,9 @@ function renderBatteryRail() {
     button.className = `battery-card${bed.id === state.activeBedId ? " is-active" : ""}`;
     button.dataset.bedId = bed.id;
     button.dataset.acuity = bed.acuity;
+    button.dataset.received = String(isReadbackConfirmed(bed));
     button.setAttribute("role", "listitem");
-    button.setAttribute("aria-label", `${bed.id}, ${bed.patientName || "vazio"}, ${charge}% preparado`);
+    button.setAttribute("aria-label", `${bed.id}, ${bed.patientName || "vazio"}, ${charge}% preparado${isReadbackConfirmed(bed) ? ", recebido" : ""}`);
 
     const shell = document.createElement("span");
     shell.className = "battery-shell";
@@ -214,7 +274,7 @@ function renderBatteryRail() {
     rail.append(button);
   });
 
-  $("#metric-ready").textContent = state.beds.filter((bed) => bedCharge(bed) >= 80).length;
+  $("#metric-ready").textContent = state.beds.filter(isReadbackConfirmed).length;
   $("#metric-pending").textContent = state.beds.reduce((sum, bed) => sum + pendingCount(bed), 0);
   $("#metric-critical").textContent = state.beds.filter((bed) => bed.acuity === "CRÍTICO").length;
 }
@@ -243,6 +303,8 @@ function renderWorkspace() {
   renderHandoff();
   renderChecklist();
   renderAlerts();
+  renderTimeline();
+  renderReadback();
   applyTab(state.activeTab);
   void renderFiles();
   renderBatteryRail();
@@ -284,6 +346,13 @@ function renderAlerts() {
   const area = $("#alerts-area");
   area.replaceChildren();
 
+  if (bed.aiAcuity) {
+    const suggestion = document.createElement("div");
+    suggestion.className = "alert-card is-ai-suggestion";
+    suggestion.textContent = `CLASSIFICAÇÃO SUGERIDA PELA IA · ${bed.aiAcuity} · confirme manualmente no campo Estado`;
+    area.append(suggestion);
+  }
+
   bed.alerts.forEach((text) => {
     const alert = document.createElement("div");
     alert.className = "alert-card";
@@ -312,16 +381,29 @@ function renderChecklist() {
 
   bed.checklist.forEach((item) => {
     const row = document.createElement("div");
-    row.className = `check-item${item.done ? " is-done" : ""}`;
+    row.className = `check-item${item.done ? " is-done" : ""}${item.suggested ? " is-suggestion" : ""}`;
     row.dataset.checkId = item.id;
     row.dataset.priority = item.priority;
 
-    const toggle = document.createElement("input");
-    toggle.type = "checkbox";
-    toggle.className = "check-toggle";
-    toggle.checked = item.done;
-    toggle.dataset.checkField = "done";
-    toggle.setAttribute("aria-label", `Concluir ${item.text || "pendência"}`);
+    let firstControl;
+    if (item.suggested) {
+      const accept = document.createElement("button");
+      accept.type = "button";
+      accept.className = "suggestion-accept";
+      accept.dataset.acceptCheck = item.id;
+      accept.textContent = "✓";
+      accept.title = "Aceitar sugestão da IA";
+      accept.setAttribute("aria-label", `Aceitar sugestão ${item.text || "da IA"}`);
+      firstControl = accept;
+    } else {
+      const toggle = document.createElement("input");
+      toggle.type = "checkbox";
+      toggle.className = "check-toggle";
+      toggle.checked = item.done;
+      toggle.dataset.checkField = "done";
+      toggle.setAttribute("aria-label", `Concluir ${item.text || "pendência"}`);
+      firstControl = toggle;
+    }
 
     const text = document.createElement("input");
     text.className = "check-text";
@@ -359,16 +441,76 @@ function renderChecklist() {
     remove.textContent = "×";
     remove.setAttribute("aria-label", "Excluir pendência");
 
-    row.append(toggle, text, priority, due, remove);
+    row.append(firstControl, text, priority, due, remove);
     container.append(row);
   });
 
-  const done = bed.checklist.filter((item) => item.done).length;
-  const total = bed.checklist.length;
+  const activeItems = bed.checklist.filter((item) => !item.suggested);
+  const suggestions = bed.checklist.length - activeItems.length;
+  const done = activeItems.filter((item) => item.done).length;
+  const total = activeItems.length;
   const percent = total ? Math.round((done / total) * 100) : 0;
   $("#check-progress-bar").style.width = `${percent}%`;
-  $("#check-progress-label").textContent = `${done} de ${total} concluídas`;
+  $("#check-progress-label").textContent = `${done} de ${total} concluídas${suggestions ? ` · ${suggestions} sugestão${suggestions === 1 ? "" : "ões"} aguardando aceite` : ""}`;
   $("#check-count").textContent = String(pendingCount(bed));
+}
+
+function renderTimeline() {
+  const bed = activeBed();
+  const list = $("#timeline-list");
+  list.replaceChildren();
+  if (!$("#timeline-at").value) $("#timeline-at").value = localDateTimeValue();
+
+  const events = [...bed.timeline].sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  if (!events.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = "<p><strong>Nenhuma atualização registrada.</strong><br />Use esta linha do tempo para o que mudou depois da evolução.</p>";
+    list.append(empty);
+    return;
+  }
+
+  events.forEach((event) => {
+    const row = document.createElement("article");
+    row.className = "timeline-event";
+    row.dataset.eventId = event.id;
+
+    const meta = document.createElement("div");
+    meta.className = "timeline-event-meta";
+    const type = document.createElement("strong");
+    type.textContent = event.type;
+    const time = document.createElement("span");
+    time.textContent = formatDateTime(event.at);
+    meta.append(type, time);
+
+    const text = document.createElement("p");
+    text.className = "timeline-event-text";
+    text.textContent = event.text;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "timeline-remove";
+    remove.dataset.removeEvent = event.id;
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", "Excluir atualização");
+
+    row.append(meta, text, remove);
+    list.append(row);
+  });
+}
+
+function renderReadback() {
+  const readback = activeBed().readback || newReadback();
+  $("#receiver-name").value = readback.receiverName || "";
+  $("#receiver-crm").value = readback.receiverCrm || "";
+  $$('[data-readback-field]').forEach((input) => {
+    input.checked = Boolean(readback[input.dataset.readbackField]);
+  });
+
+  const status = $("#readback-status");
+  const confirmed = Boolean(readback.confirmedAt);
+  status.classList.toggle("is-confirmed", confirmed);
+  status.textContent = confirmed ? `Confirmado em ${formatDateTime(readback.confirmedAt)}` : "Ainda não confirmado";
 }
 
 async function renderFiles() {
@@ -486,6 +628,13 @@ async function addFiles(fileList) {
     });
   }
 
+  const bed = state.beds.find((candidate) => candidate.id === bedId);
+  if (bed) {
+    bed.updatedAt = new Date().toISOString();
+    invalidateReadback(bed);
+    scheduleSave();
+  }
+
   await renderFiles();
   renderBatteryRail();
   toast(`${files.length} arquivo${files.length === 1 ? " adicionado" : "s adicionados"} ao ${bedId}.`);
@@ -499,8 +648,10 @@ function addChecklistItem(seed = {}) {
     priority: seed.priority || "media",
     due: seed.due || "",
     done: false,
+    suggested: Boolean(seed.suggested),
   });
   bed.updatedAt = new Date().toISOString();
+  invalidateReadback(bed);
   renderChecklist();
   renderBatteryRail();
   scheduleSave();
@@ -515,82 +666,237 @@ function fileToDataURL(blob) {
   });
 }
 
-async function generateHandoff() {
-  const bed = activeBed();
-  const selectedFiles = (await filesForBed(bed.id)).filter((file) => file.selected !== false).slice(0, 8);
+function analysisTextForBed(bed) {
+  const timeline = [...bed.timeline]
+    .sort((a, b) => String(a.at).localeCompare(String(b.at)))
+    .map((event) => `[${formatDateTime(event.at)}] ${event.type}: ${event.text}`);
+  return [
+    bed.clinicalText.trim(),
+    timeline.length ? `ATUALIZAÇÕES CRONOLÓGICAS DO PLANTÃO:\n${timeline.join("\n")}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
+async function prepareBedAnalysis(bed) {
+  const selectedFiles = (await filesForBed(bed.id)).filter((file) => file.selected !== false);
+  if (selectedFiles.length > 8) throw new Error(`${bed.id}: selecione no máximo 8 anexos.`);
   const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
-
-  if (!bed.clinicalText.trim() && !selectedFiles.length) {
-    toast("Adicione texto clínico ou pelo menos um arquivo.", true);
-    return;
-  }
   if (totalSize > MAX_ANALYSIS_SIZE) {
-    toast("Os anexos selecionados ultrapassam 28 MB. Desmarque alguns arquivos.", true);
-    applyTab("vault");
-    return;
+    throw new Error(`${bed.id}: anexos acima de 22 MB; desmarque alguns arquivos.`);
   }
 
-  showLoading(true);
-  try {
-    const attachments = await Promise.all(selectedFiles.map(async (file) => ({
-      name: file.name,
-      type: file.type,
-      data: await fileToDataURL(file.blob),
-    })));
+  const clinicalText = analysisTextForBed(bed);
+  if (clinicalText.length > MAX_CLINICAL_TEXT) {
+    throw new Error(`${bed.id}: texto acima de 120.000 caracteres; divida o material antes de enviar.`);
+  }
+  if (!clinicalText && !selectedFiles.length) throw new Error(`${bed.id}: adicione texto ou pelo menos um arquivo.`);
 
+  const fingerprint = await sha256(JSON.stringify({
+    bed: bed.id,
+    patientName: bed.patientName,
+    age: bed.age,
+    record: bed.record,
+    admission: bed.admission,
+    medicalAcuity: bed.acuity,
+    clinicalText,
+    files: selectedFiles.map(({ name, type, size, lastModified }) => ({ name, type, size, lastModified })),
+  }));
+  return { selectedFiles, clinicalText, fingerprint };
+}
+
+function applyAiResult(bed, result, fingerprint) {
+  bed.patientName = bed.patientName || result.patient_name || "";
+  bed.aiAcuity = result.acuity || "";
+  bed.handoff = HANDOFF_LABELS.map((label, index) => ({
+    number: index + 1,
+    label,
+    text: String(result.handoff?.[index]?.text || "").trim(),
+  }));
+  bed.alerts = Array.isArray(result.safety_alerts) ? result.safety_alerts.slice(0, 8) : [];
+  bed.missing = Array.isArray(result.missing_critical_data) ? result.missing_critical_data.slice(0, 12) : [];
+
+  const existing = new Set(bed.checklist.map((item) => item.text.trim().toLocaleLowerCase("pt-BR")));
+  (result.checklist_suggestions || []).slice(0, 12).forEach((suggestion) => {
+    const text = String(suggestion.text || "").trim();
+    if (!text || existing.has(text.toLocaleLowerCase("pt-BR"))) return;
+    bed.checklist.push({
+      id: crypto.randomUUID(),
+      text,
+      priority: suggestion.priority || "media",
+      due: suggestion.due || "",
+      done: false,
+      suggested: true,
+    });
+  });
+
+  bed.renderFingerprint = fingerprint;
+  bed.updatedAt = new Date().toISOString();
+  invalidateReadback(bed);
+}
+
+async function renderBedWithAI(bed, { force = false } = {}) {
+  const sourceVersion = bed.updatedAt;
+  const prepared = await prepareBedAnalysis(bed);
+  const alreadyRendered = bed.renderFingerprint === prepared.fingerprint
+    && bed.handoff.every((line) => line.text.trim());
+  if (alreadyRendered && !force) return { status: "skipped" };
+
+  const attachments = await Promise.all(prepared.selectedFiles.map(async (file) => ({
+    name: file.name,
+    type: file.type,
+    data: await fileToDataURL(file.blob),
+  })));
+  if (cancelRequested) throw Object.assign(new Error("Renderização cancelada."), { name: "AbortError" });
+  if (bed.updatedAt !== sourceVersion) {
+    throw new Error(`${bed.id}: o conteúdo mudou antes do envio; a análise foi cancelada.`);
+  }
+
+  const controller = new AbortController();
+  activeRequestControllers.add(controller);
+  try {
     const response = await fetch("/api/render", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        context: { bed: bed.id, patientName: bed.patientName },
-        clinicalText: bed.clinicalText,
+        context: {
+          bed: bed.id,
+          patientName: bed.patientName,
+          age: bed.age,
+          record: bed.record,
+          admission: bed.admission,
+          medicalAcuity: bed.acuity,
+        },
+        clinicalText: prepared.clinicalText,
         attachments,
       }),
+      signal: controller.signal,
     });
 
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível renderizar o leito.");
-
-    bed.patientName = bed.patientName || result.patient_name || "";
-    bed.acuity = result.acuity || bed.acuity;
-    bed.handoff = HANDOFF_LABELS.map((label, index) => ({
-      number: index + 1,
-      label,
-      text: String(result.handoff?.[index]?.text || "").trim(),
-    }));
-    bed.alerts = Array.isArray(result.safety_alerts) ? result.safety_alerts.slice(0, 8) : [];
-    bed.missing = Array.isArray(result.missing_critical_data) ? result.missing_critical_data.slice(0, 12) : [];
-
-    const existing = new Set(bed.checklist.map((item) => item.text.trim().toLocaleLowerCase("pt-BR")));
-    (result.checklist_suggestions || []).slice(0, 12).forEach((suggestion) => {
-      const text = String(suggestion.text || "").trim();
-      if (!text || existing.has(text.toLocaleLowerCase("pt-BR"))) return;
-      bed.checklist.push({
-        id: crypto.randomUUID(),
-        text,
-        priority: suggestion.priority || "media",
-        due: suggestion.due || "",
-        done: false,
-      });
-    });
-
-    bed.updatedAt = new Date().toISOString();
-    await saveState();
-    renderWorkspace();
-    applyTab("render");
-    toast(`${bed.id} renderizado: revise as 10 linhas antes da passagem.`);
-  } catch (error) {
-    toast(error.message || "Falha na renderização.", true);
+    if (!response.ok) throw new Error(result.error || `Não foi possível renderizar ${bed.id}.`);
+    if (bed.updatedAt !== sourceVersion) {
+      throw new Error(`${bed.id}: o conteúdo mudou durante a análise; a resposta antiga foi descartada.`);
+    }
+    applyAiResult(bed, result, prepared.fingerprint);
+    return { status: "rendered" };
   } finally {
-    showLoading(false);
+    activeRequestControllers.delete(controller);
   }
 }
 
-function showLoading(show) {
+async function generateHandoff({ force = false } = {}) {
+  if (analysisInProgress) return toast("Já existe uma análise em andamento.", true);
+  const bed = activeBed();
+  analysisInProgress = true;
+  cancelRequested = false;
+  showLoading(true);
+  try {
+    let outcome = await renderBedWithAI(bed, { force });
+    if (outcome.status === "skipped") {
+      showLoading(false);
+      const rerender = window.confirm("Nada mudou desde a última renderização. Deseja consumir uma nova análise mesmo assim?");
+      if (!rerender) return;
+      showLoading(true);
+      outcome = await renderBedWithAI(bed, { force: true });
+    }
+    await saveState();
+    renderWorkspace();
+    applyTab("render");
+    toast(`${bed.id} renderizado: revise as 10 linhas e aceite as sugestões necessárias.`);
+  } catch (error) {
+    const message = error.name === "AbortError" ? "Renderização cancelada." : error.message || "Falha na renderização.";
+    toast(message, error.name !== "AbortError");
+  } finally {
+    showLoading(false);
+    analysisInProgress = false;
+  }
+}
+
+async function runPool(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function runner() {
+    while (!cancelRequested) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      try {
+        results[index] = await worker(items[index], index);
+      } catch (error) {
+        results[index] = { status: error.name === "AbortError" ? "cancelled" : "failed", error };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => runner()));
+  return results;
+}
+
+async function renderAllBeds() {
+  if (analysisInProgress) return toast("Já existe uma análise em andamento.", true);
+  let eligibility;
+  try {
+    eligibility = await Promise.all(state.beds.map(async (bed) => {
+      if (analysisTextForBed(bed)) return true;
+      return (await filesForBed(bed.id)).some((file) => file.selected !== false);
+    }));
+  } catch {
+    return toast("Não foi possível ler o cofre local para iniciar o modo Turbo.", true);
+  }
+  const beds = state.beds.filter((_, index) => eligibility[index]);
+  if (!beds.length) return toast("Nenhum leito possui material para renderizar.", true);
+  if (!window.confirm(`O modo Turbo analisará até ${beds.length} leito${beds.length === 1 ? "" : "s"} usando a mesma chave da API, com no máximo ${BATCH_CONCURRENCY} requisições simultâneas. Continuar?`)) return;
+
+  analysisInProgress = true;
+  cancelRequested = false;
+  let completed = 0;
+  showLoading(true, {
+    title: "Modo Turbo nos leitos ocupados",
+    description: `0 de ${beds.length} processados · entradas sem alteração serão ignoradas`,
+  });
+
+  try {
+    const results = await runPool(beds, BATCH_CONCURRENCY, async (bed) => {
+      try {
+        return await renderBedWithAI(bed);
+      } finally {
+        completed += 1;
+        updateLoading("Modo Turbo nos leitos ocupados", `${completed} de ${beds.length} processados · último: ${bed.id}`);
+      }
+    });
+
+    await saveState();
+    renderWorkspace();
+    const rendered = results.filter((result) => result?.status === "rendered").length;
+    const skipped = results.filter((result) => result?.status === "skipped").length;
+    const failed = results.filter((result) => result?.status === "failed").length;
+    const cancelled = cancelRequested || results.some((result) => result?.status === "cancelled");
+    toast(
+      cancelled
+        ? `Turbo cancelado · ${rendered} concluído${rendered === 1 ? "" : "s"}.`
+        : `Turbo finalizado · ${rendered} novo${rendered === 1 ? "" : "s"}, ${skipped} sem mudanças${failed ? `, ${failed} com falha` : ""}.`,
+      Boolean(failed),
+    );
+  } catch (error) {
+    toast(error.message || "O modo Turbo não pôde ser concluído.", true);
+  } finally {
+    showLoading(false);
+    analysisInProgress = false;
+  }
+}
+
+function updateLoading(title, description) {
+  $("#loading-title").textContent = title;
+  $("#loading-description").textContent = description;
+}
+
+function showLoading(show, copy = {}) {
   const overlay = $("#loading-overlay");
   overlay.hidden = !show;
+  $("#generate-handoff").disabled = show;
+  $("#render-all").disabled = show;
   clearInterval(activeLoadingTimer);
   if (!show) return;
+
+  updateLoading(copy.title || "Construindo as 10 linhas…", copy.description || "Extraindo fatos, separando riscos e convertendo o plano em execução.");
 
   const steps = $$(".loading-steps span", overlay);
   let index = 0;
@@ -606,8 +912,24 @@ function handoffText(bed) {
     `${bed.id} · ${bed.patientName || "PACIENTE NÃO IDENTIFICADO"}${bed.age ? ` · ${bed.age} ANOS` : ""} · ${bed.acuity}`,
   ];
   const lines = bed.handoff.map((line, index) => `${index + 1}. ${HANDOFF_LABELS[index].toUpperCase()}: ${line.text.trim() || "NÃO INFORMADO"}`);
-  const pending = bed.checklist.filter((item) => !item.done).map((item) => `☐ ${item.text}${item.due ? ` · ${item.due}` : ""}`);
-  return [...header, "", ...lines, ...(pending.length ? ["", "PENDÊNCIAS:", ...pending] : [])].join("\n");
+  const pending = bed.checklist
+    .filter((item) => !item.done && !item.suggested)
+    .map((item) => `☐ ${item.text}${item.due ? ` · ${item.due}` : ""}`);
+  const timeline = [...bed.timeline]
+    .sort((a, b) => String(a.at).localeCompare(String(b.at)))
+    .slice(-8)
+    .map((event) => `• ${formatDateTime(event.at)} · ${event.type}: ${event.text}`);
+  const receipt = isReadbackConfirmed(bed)
+    ? [`RECEBIDO POR: ${bed.readback.receiverName} · ${bed.readback.receiverCrm} · ${formatDateTime(bed.readback.confirmedAt)}`]
+    : [];
+  return [
+    ...header,
+    "",
+    ...lines,
+    ...(timeline.length ? ["", "ATUALIZAÇÕES DO PLANTÃO:", ...timeline] : []),
+    ...(pending.length ? ["", "PENDÊNCIAS:", ...pending] : []),
+    ...(receipt.length ? ["", ...receipt] : []),
+  ].join("\n");
 }
 
 async function copyText(text) {
@@ -631,7 +953,7 @@ async function copyActiveBed() {
 }
 
 async function copyAllBeds() {
-  const occupied = state.beds.filter((bed) => bed.patientName.trim() || bed.clinicalText.trim() || bed.handoff.some((line) => line.text.trim()));
+  const occupied = state.beds.filter(bedHasData);
   if (!occupied.length) return toast("Nenhum leito contém dados para copiar.", true);
 
   const heading = [
@@ -659,6 +981,234 @@ async function exportWorkspace() {
   link.click();
   URL.revokeObjectURL(url);
   toast("Plantão exportado em JSON, sem copiar o conteúdo dos anexos.");
+}
+
+function addTimelineEvent() {
+  const text = $("#timeline-text").value.trim();
+  const rawAt = $("#timeline-at").value;
+  if (!text) return toast("Descreva a atualização antes de registrar.", true);
+  const parsedAt = new Date(rawAt);
+  if (!rawAt || Number.isNaN(parsedAt.getTime())) return toast("Informe uma data e hora válidas.", true);
+
+  const bed = activeBed();
+  bed.timeline.push({
+    id: crypto.randomUUID(),
+    type: $("#timeline-type").value,
+    text,
+    at: parsedAt.toISOString(),
+    author: state.settings.doctorName || "",
+  });
+  bed.updatedAt = new Date().toISOString();
+  invalidateReadback(bed);
+  $("#timeline-text").value = "";
+  $("#timeline-at").value = localDateTimeValue();
+  renderTimeline();
+  renderBatteryRail();
+  renderShiftRadar();
+  scheduleSave();
+  toast(`Atualização registrada no ${bed.id}.`);
+}
+
+function readbackMaterial(bed) {
+  return JSON.stringify({
+    patientName: bed.patientName,
+    record: bed.record,
+    acuity: bed.acuity,
+    handoff: bed.handoff.map((line) => line.text),
+    alerts: bed.alerts,
+    missing: bed.missing,
+    checklist: bed.checklist.filter((item) => !item.suggested).map(({ text, priority, due, done }) => ({ text, priority, due, done })),
+    timeline: bed.timeline,
+  });
+}
+
+async function confirmReadback() {
+  const bed = activeBed();
+  const readback = bed.readback;
+  if (!bed.handoff.every((line) => line.text.trim())) return toast("Complete e revise as 10 linhas antes do aceite.", true);
+  if (!readback.receiverName.trim() || !readback.receiverCrm.trim()) return toast("Informe nome e CRM do médico receptor.", true);
+  if (!readback.linesReviewed || !readback.risksReviewed || !readback.tasksUnderstood) {
+    return toast("Confirme os três itens do read-back.", true);
+  }
+
+  const sourceVersion = bed.updatedAt;
+  const contentHash = await sha256(readbackMaterial(bed));
+  if (bed.updatedAt !== sourceVersion || activeBed().id !== bed.id) {
+    return toast("O leito mudou durante a confirmação; revise novamente.", true);
+  }
+  readback.contentHash = contentHash;
+  readback.confirmedAt = new Date().toISOString();
+  bed.updatedAt = new Date().toISOString();
+  await saveState();
+  renderReadback();
+  renderBatteryRail();
+  renderShiftRadar();
+  toast(`${bed.id} recebido e confirmado por ${readback.receiverName}.`);
+}
+
+function radarScore(bed) {
+  const acuity = { "CRÍTICO": 4, "ATENÇÃO": 3, "NÃO DEFINIDO": 2, "ESTÁVEL": 1 }[bed.acuity] || 0;
+  const highPending = bed.checklist.filter((item) => !item.done && !item.suggested && item.priority === "alta").length;
+  return acuity * 10_000 + bed.alerts.length * 1_000 + bed.missing.length * 100 + highPending * 10 + pendingCount(bed);
+}
+
+function renderShiftRadar() {
+  const dialog = $("#radar-dialog");
+  if (!dialog?.open) return;
+  const beds = state.beds.filter(bedHasData).sort((a, b) => radarScore(b) - radarScore(a));
+  const summary = $("#radar-summary");
+  summary.replaceChildren();
+  [
+    [beds.length, "leitos com dados"],
+    [beds.filter((bed) => bed.acuity === "CRÍTICO").length, "críticos informados"],
+    [beds.reduce((sum, bed) => sum + bed.alerts.length + bed.missing.length, 0), "alertas e lacunas"],
+    [beds.reduce((sum, bed) => sum + pendingCount(bed), 0), "pendências ativas"],
+  ].forEach(([value, label]) => {
+    const card = document.createElement("div");
+    const number = document.createElement("strong");
+    number.textContent = String(value);
+    const caption = document.createElement("span");
+    caption.textContent = label;
+    card.append(number, caption);
+    summary.append(card);
+  });
+
+  const list = $("#radar-list");
+  list.replaceChildren();
+  if (!beds.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = "<p><strong>Radar sem sinais registrados.</strong><br />Preencha um leito para começar.</p>";
+    list.append(empty);
+    return;
+  }
+
+  beds.forEach((bed) => {
+    const card = document.createElement("article");
+    card.className = "radar-card";
+    card.dataset.acuity = bed.acuity;
+
+    const bedNumber = document.createElement("div");
+    bedNumber.className = "radar-bed";
+    bedNumber.textContent = bed.id;
+
+    const patient = document.createElement("div");
+    patient.className = "radar-patient";
+    const patientName = document.createElement("strong");
+    patientName.textContent = bed.patientName || "Paciente não identificado";
+    const patientMeta = document.createElement("span");
+    patientMeta.textContent = `${bed.acuity} · bateria ${bedCharge(bed)}%${isReadbackConfirmed(bed) ? " · recebido" : ""}`;
+    patient.append(patientName, patientMeta);
+
+    const signals = document.createElement("div");
+    signals.className = "radar-signals";
+    const signalTitle = document.createElement("strong");
+    const high = bed.checklist.filter((item) => !item.done && !item.suggested && item.priority === "alta").length;
+    signalTitle.textContent = `${bed.alerts.length} alerta${bed.alerts.length === 1 ? "" : "s"} · ${bed.missing.length} lacuna${bed.missing.length === 1 ? "" : "s"} · ${pendingCount(bed)} pendência${pendingCount(bed) === 1 ? "" : "s"}`;
+    const signalText = document.createElement("span");
+    signalText.textContent = high ? `${high} pendência${high === 1 ? "" : "s"} de prioridade alta` : "Sem pendência alta registrada";
+    signals.append(signalTitle, signalText);
+
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "radar-open-bed";
+    open.dataset.radarBed = bed.id;
+    open.textContent = "Abrir";
+
+    card.append(bedNumber, patient, signals, open);
+    list.append(card);
+  });
+}
+
+function openRadar() {
+  const dialog = $("#radar-dialog");
+  if (!dialog.open) dialog.showModal();
+  renderShiftRadar();
+}
+
+function navigateToBed(bedId, tab = "render") {
+  state.activeBedId = bedId;
+  state.activeTab = tab;
+  renderWorkspace();
+  scheduleSave();
+  $("#workspace").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function commandCatalog() {
+  const bed = activeBed();
+  const commands = [
+    { id: "radar", icon: "◉", label: "Abrir radar do plantão", detail: "Prioridades dos 10 leitos", keywords: "radar prioridade risco", run: openRadar },
+    { id: "render", icon: "✦", label: `Renderizar ${bed.id}`, detail: "Gerar as 10 linhas", keywords: "gpt ia gerar", run: () => void generateHandoff() },
+    { id: "copy", icon: "⧉", label: `Copiar ${bed.id}`, detail: "Passagem pronta para colar", keywords: "copiar clipboard", run: () => void copyActiveBed() },
+    { id: "files", icon: "▣", label: `Abrir arquivos do ${bed.id}`, detail: "Exames e documentos", keywords: "pdf foto exames anexo", run: () => { applyTab("vault"); $("#workspace").scrollIntoView({ behavior: "smooth" }); } },
+    { id: "checklist", icon: "✓", label: `Abrir checklist do ${bed.id}`, detail: "Pendências e read-back", keywords: "tarefas pendencias aceite", run: () => { applyTab("checklist"); $("#workspace").scrollIntoView({ behavior: "smooth" }); } },
+    { id: "event", icon: "+", label: `Registrar intercorrência no ${bed.id}`, detail: "Abrir linha do tempo", keywords: "evento exame conduta contato", run: () => { applyTab("render"); $("#timeline-type").value = "INTERCORRÊNCIA"; $("#timeline-text").focus(); } },
+    { id: "high-task", icon: "!", label: `Criar pendência alta no ${bed.id}`, detail: "Ação prioritária editável", keywords: "tarefa urgente alta", run: () => { addChecklistItem({ priority: "alta" }); applyTab("checklist"); setTimeout(() => $(".check-item:last-child .check-text")?.focus(), 0); } },
+    { id: "critical", icon: "▲", label: `Marcar ${bed.id} como crítico`, detail: "Classificação médica manual", keywords: "critico estado gravidade", run: () => { updateBedField("acuity", "CRÍTICO"); $("#bed-acuity").value = "CRÍTICO"; renderBatteryRail(); } },
+    { id: "turbo", icon: "⚡", label: "Turbo: renderizar leitos ocupados", detail: "Até 3 análises simultâneas", keywords: "lote todos velocidade", run: () => void renderAllBeds() },
+  ];
+  state.beds.forEach((candidate) => commands.push({
+    id: `bed-${candidate.id}`,
+    icon: candidate.id,
+    label: `Ir para ${candidate.id}`,
+    detail: candidate.patientName || "Leito vazio",
+    keywords: `${candidate.id} leito paciente ${candidate.patientName}`,
+    run: () => navigateToBed(candidate.id),
+  }));
+  return commands;
+}
+
+function normalizedSearch(value) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+}
+
+function renderCommandList(query = "") {
+  const needle = normalizedSearch(query.trim());
+  visibleCommands = commandCatalog().filter((command) => normalizedSearch(`${command.label} ${command.detail} ${command.keywords}`).includes(needle));
+  commandSelection = Math.min(commandSelection, Math.max(0, visibleCommands.length - 1));
+  const list = $("#command-list");
+  list.replaceChildren();
+
+  visibleCommands.forEach((command, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `command-item${index === commandSelection ? " is-selected" : ""}`;
+    button.dataset.commandId = command.id;
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", String(index === commandSelection));
+
+    const icon = document.createElement("span");
+    icon.className = "command-icon";
+    icon.textContent = command.icon;
+    const copy = document.createElement("span");
+    copy.className = "command-copy";
+    const label = document.createElement("strong");
+    label.textContent = command.label;
+    const detail = document.createElement("span");
+    detail.textContent = command.detail;
+    copy.append(label, detail);
+    const key = document.createElement("span");
+    key.className = "command-key";
+    key.textContent = index === commandSelection ? "Enter" : "";
+    button.append(icon, copy, key);
+    list.append(button);
+  });
+}
+
+function openCommands() {
+  const dialog = $("#command-dialog");
+  $("#command-search").value = "";
+  commandSelection = 0;
+  renderCommandList();
+  if (!dialog.open) dialog.showModal();
+  setTimeout(() => $("#command-search").focus(), 0);
+}
+
+function executeCommand(id) {
+  const command = commandCatalog().find((candidate) => candidate.id === id);
+  if (!command) return;
+  $("#command-dialog").close();
+  command.run();
 }
 
 function formatBytes(bytes) {
@@ -714,9 +1264,7 @@ function bindEvents() {
   $("#bed-rail").addEventListener("click", (event) => {
     const button = event.target.closest("[data-bed-id]");
     if (!button) return;
-    state.activeBedId = button.dataset.bedId;
-    renderWorkspace();
-    scheduleSave();
+    navigateToBed(button.dataset.bedId, state.activeTab);
   });
 
   $(".tabs").addEventListener("click", (event) => {
@@ -744,6 +1292,7 @@ function bindEvents() {
     const index = Number(event.target.dataset.lineIndex);
     activeBed().handoff[index].text = event.target.value;
     activeBed().updatedAt = new Date().toISOString();
+    invalidateReadback(activeBed());
     event.target.closest(".handoff-line").classList.toggle("has-content", Boolean(event.target.value.trim()));
     $("#render-count").textContent = `${activeBed().handoff.filter((line) => line.text.trim()).length}/10`;
     renderBatteryRail();
@@ -754,9 +1303,24 @@ function bindEvents() {
   $("#checklist-items").addEventListener("input", handleChecklistChange);
   $("#checklist-items").addEventListener("change", handleChecklistChange);
   $("#checklist-items").addEventListener("click", (event) => {
+    const acceptId = event.target.dataset.acceptCheck;
+    if (acceptId) {
+      const item = activeBed().checklist.find((candidate) => candidate.id === acceptId);
+      if (!item) return;
+      item.suggested = false;
+      activeBed().updatedAt = new Date().toISOString();
+      invalidateReadback(activeBed());
+      renderChecklist();
+      renderBatteryRail();
+      scheduleSave();
+      toast("Sugestão aceita como pendência ativa.");
+      return;
+    }
     const id = event.target.dataset.removeCheck;
     if (!id) return;
     activeBed().checklist = activeBed().checklist.filter((item) => item.id !== id);
+    activeBed().updatedAt = new Date().toISOString();
+    invalidateReadback(activeBed());
     renderChecklist();
     renderBatteryRail();
     scheduleSave();
@@ -789,6 +1353,9 @@ function bindEvents() {
       store.put(record);
     }
     await transactionDone(transaction);
+    activeBed().updatedAt = new Date().toISOString();
+    invalidateReadback(activeBed());
+    scheduleSave();
     await renderFiles();
   });
 
@@ -797,6 +1364,9 @@ function bindEvents() {
     const downloadId = event.target.dataset.downloadFile;
     if (deleteId) {
       await deleteFile(deleteId);
+      activeBed().updatedAt = new Date().toISOString();
+      invalidateReadback(activeBed());
+      scheduleSave();
       await renderFiles();
       renderBatteryRail();
     }
@@ -813,23 +1383,113 @@ function bindEvents() {
     }
   });
 
-  $("#generate-handoff").addEventListener("click", generateHandoff);
+  $("#timeline-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    addTimelineEvent();
+  });
+  $("#timeline-list").addEventListener("click", (event) => {
+    const id = event.target.dataset.removeEvent;
+    if (!id) return;
+    const bed = activeBed();
+    bed.timeline = bed.timeline.filter((item) => item.id !== id);
+    bed.updatedAt = new Date().toISOString();
+    invalidateReadback(bed);
+    renderTimeline();
+    renderBatteryRail();
+    renderShiftRadar();
+    scheduleSave();
+  });
+
+  $("#receiver-name").addEventListener("input", (event) => updateReadbackField("receiverName", event.target.value));
+  $("#receiver-crm").addEventListener("input", (event) => updateReadbackField("receiverCrm", event.target.value));
+  $$('[data-readback-field]').forEach((input) => input.addEventListener("change", (event) => {
+    updateReadbackField(event.target.dataset.readbackField, event.target.checked);
+  }));
+  $("#confirm-readback").addEventListener("click", () => void confirmReadback());
+
+  $("#open-radar").addEventListener("click", openRadar);
+  $("#open-commands").addEventListener("click", openCommands);
+  $("#render-all").addEventListener("click", () => void renderAllBeds());
+  $("#radar-list").addEventListener("click", (event) => {
+    const bedId = event.target.dataset.radarBed;
+    if (!bedId) return;
+    $("#radar-dialog").close();
+    navigateToBed(bedId);
+  });
+  $$('[data-close-dialog]').forEach((button) => button.addEventListener("click", () => {
+    $(`#${button.dataset.closeDialog}`).close();
+  }));
+  $$(".app-dialog").forEach((dialog) => dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  }));
+
+  $("#command-search").addEventListener("input", (event) => {
+    commandSelection = 0;
+    renderCommandList(event.target.value);
+  });
+  $("#command-search").addEventListener("keydown", (event) => {
+    if (!visibleCommands.length) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      commandSelection = (commandSelection + direction + visibleCommands.length) % visibleCommands.length;
+      renderCommandList(event.currentTarget.value);
+      $(".command-item.is-selected")?.scrollIntoView({ block: "nearest" });
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      executeCommand(visibleCommands[commandSelection].id);
+    }
+  });
+  $("#command-list").addEventListener("click", (event) => {
+    const item = event.target.closest("[data-command-id]");
+    if (item) executeCommand(item.dataset.commandId);
+  });
+  document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase("pt-BR") === "k") {
+      const isTyping = event.target.matches?.("input, textarea, select, [contenteditable='true']");
+      if (isTyping && !$("#command-dialog").open) return;
+      event.preventDefault();
+      openCommands();
+    }
+  });
+
+  $("#cancel-loading").addEventListener("click", () => {
+    cancelRequested = true;
+    activeRequestControllers.forEach((controller) => controller.abort());
+    $("#loading-description").textContent = "Cancelando solicitações em andamento…";
+  });
+
+  $("#generate-handoff").addEventListener("click", () => void generateHandoff());
   $("#copy-bed").addEventListener("click", copyActiveBed);
   $("#copy-all").addEventListener("click", copyAllBeds);
   $("#export-data").addEventListener("click", exportWorkspace);
   $("#print-bed").addEventListener("click", () => window.print());
   $("#clear-bed").addEventListener("click", clearActiveBed);
-  window.addEventListener("beforeunload", () => clearTimeout(saveTimer));
+  window.addEventListener("pagehide", () => void saveState());
 }
 
 function updateBedField(field, value) {
   const bed = activeBed();
   bed[field] = value;
   bed.updatedAt = new Date().toISOString();
+  invalidateReadback(bed);
   if (field === "patientName") {
     $("#active-bed-title").textContent = value || "Paciente não identificado";
     renderBatteryRail();
   }
+  scheduleSave();
+}
+
+function updateReadbackField(field, value) {
+  const bed = activeBed();
+  if (!bed.readback) bed.readback = newReadback();
+  bed.readback[field] = value;
+  bed.readback.confirmedAt = null;
+  bed.readback.contentHash = "";
+  bed.updatedAt = new Date().toISOString();
+  renderReadback();
+  renderBatteryRail();
   scheduleSave();
 }
 
@@ -841,6 +1501,7 @@ function handleChecklistChange(event) {
   if (!item) return;
   item[field] = field === "done" ? event.target.checked : event.target.value;
   activeBed().updatedAt = new Date().toISOString();
+  invalidateReadback(activeBed());
   if (field === "done" || field === "priority") renderChecklist();
   renderBatteryRail();
   scheduleSave();

@@ -8,6 +8,7 @@
       name="description"
       content="Passagem de plantão local-first para UTI adulta: 10 leitos, 10 tópicos, anexos e checklist." />
     <title>Passagem UTI · 10 leitos, 10 linhas</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png" />
     <link rel="stylesheet" href="./styles.css" />
     <script type="module" src="./app.js"></script>
   </head>
@@ -17,7 +18,7 @@
     <header class="app-header">
       <div class="brand-lockup">
         <div class="brand-mark" aria-hidden="true">
-          <span></span><span></span><span></span>
+          <img src="./assets/logo-passagem-uti.png" alt="" />
         </div>
         <div>
           <p class="eyebrow">NEXUS CARE · CONTINUIDADE ASSISTENCIAL</p>
@@ -31,6 +32,15 @@
           <span class="status-dot"></span>
           <span>Verificando GPT</span>
         </div>
+        <button id="open-radar" class="button button-ghost" type="button">
+          <span aria-hidden="true">◉</span> Radar
+        </button>
+        <button id="open-commands" class="button button-ghost" type="button" aria-keyshortcuts="Control+K Meta+K">
+          <span aria-hidden="true">⌘K</span> Ações
+        </button>
+        <button id="render-all" class="button button-turbo" type="button">
+          <span aria-hidden="true">⚡</span> Turbo 10 leitos
+        </button>
         <button id="copy-all" class="button button-ghost" type="button">
           <span aria-hidden="true">⧉</span> Copiar plantão
         </button>
@@ -97,7 +107,7 @@
             <h2 id="ward-title">Baterias assistenciais</h2>
           </div>
           <div class="ward-metrics" aria-live="polite">
-            <div><strong id="metric-ready">0</strong><span>prontos</span></div>
+            <div><strong id="metric-ready">0</strong><span>recebidos</span></div>
             <div><strong id="metric-pending">0</strong><span>pendências</span></div>
             <div><strong id="metric-critical">0</strong><span>críticos</span></div>
           </div>
@@ -214,6 +224,38 @@
               <ol id="handoff-lines" class="handoff-lines"></ol>
             </section>
           </div>
+
+          <section class="timeline-panel" aria-labelledby="timeline-title">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">LINHA DO TEMPO DO LEITO</p>
+                <h3 id="timeline-title">O que mudou durante o plantão</h3>
+              </div>
+              <span class="local-chip">Entra na próxima renderização</span>
+            </div>
+            <form id="timeline-form" class="timeline-composer">
+              <label>
+                <span>Tipo</span>
+                <select id="timeline-type">
+                  <option value="INTERCORRÊNCIA">Intercorrência</option>
+                  <option value="EXAME">Exame / resultado</option>
+                  <option value="CONDUTA">Conduta</option>
+                  <option value="PROCEDIMENTO">Procedimento</option>
+                  <option value="CONTATO">Contato familiar / equipe</option>
+                </select>
+              </label>
+              <label>
+                <span>Data e hora</span>
+                <input id="timeline-at" type="datetime-local" />
+              </label>
+              <label class="timeline-text-field">
+                <span>Registro objetivo</span>
+                <input id="timeline-text" autocomplete="off" maxlength="600" placeholder="Ex.: gasometria coletada; reavaliar às 18h" />
+              </label>
+              <button class="button button-primary" type="submit">＋ Registrar</button>
+            </form>
+            <div id="timeline-list" class="timeline-list"></div>
+          </section>
         </div>
 
         <div id="tab-vault" class="tab-panel" role="tabpanel" hidden>
@@ -279,6 +321,35 @@
               <p>O GPT pode sugerir itens, mas o médico confirma, edita e conclui cada um.</p>
             </aside>
           </div>
+
+          <section class="readback-panel" aria-labelledby="readback-title">
+            <div class="readback-heading">
+              <div>
+                <p class="eyebrow">READ-BACK · PASSAGEM REVERSA</p>
+                <h3 id="readback-title">Aceite do médico que recebe o leito</h3>
+              </div>
+              <p id="readback-status" class="readback-status">Ainda não confirmado</p>
+            </div>
+            <div class="readback-grid">
+              <label>
+                <span>Nome do receptor</span>
+                <input id="receiver-name" autocomplete="name" placeholder="Nome completo" />
+              </label>
+              <label>
+                <span>CRM / UF</span>
+                <input id="receiver-crm" autocomplete="off" placeholder="CRM-UF 00000" />
+              </label>
+            </div>
+            <div class="readback-checks">
+              <label><input type="checkbox" data-readback-field="linesReviewed" /> Revisei as 10 linhas</label>
+              <label><input type="checkbox" data-readback-field="risksReviewed" /> Conferi alertas e lacunas</label>
+              <label><input type="checkbox" data-readback-field="tasksUnderstood" /> Compreendi pendências e gatilhos</label>
+            </div>
+            <div class="readback-actions">
+              <p>Qualquer alteração clínica posterior invalida automaticamente este aceite.</p>
+              <button id="confirm-readback" class="button button-primary" type="button">✓ Confirmar recebimento</button>
+            </div>
+          </section>
         </div>
       </section>
     </main>
@@ -293,13 +364,41 @@
 
     <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 
+    <dialog id="radar-dialog" class="app-dialog radar-dialog" aria-labelledby="radar-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">CENTRAL DOS 10 LEITOS</p>
+          <h2 id="radar-title">Radar operacional do plantão</h2>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="radar-dialog" aria-label="Fechar radar">×</button>
+      </div>
+      <p class="dialog-intro">Ordenado apenas pelos dados registrados: estado médico, alertas, lacunas e pendências.</p>
+      <div id="radar-summary" class="radar-summary"></div>
+      <div id="radar-list" class="radar-list"></div>
+    </dialog>
+
+    <dialog id="command-dialog" class="app-dialog command-dialog" aria-labelledby="command-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">ATALHO GLOBAL · ⌘/CTRL + K</p>
+          <h2 id="command-title">Ações rápidas</h2>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="command-dialog" aria-label="Fechar ações">×</button>
+      </div>
+      <label class="command-search-label" for="command-search">Buscar ação ou leito</label>
+      <input id="command-search" class="command-search" autocomplete="off" placeholder="Ex.: L4, copiar, pendência, arquivos…" />
+      <div id="command-list" class="command-list" role="listbox" aria-label="Ações disponíveis"></div>
+      <p class="command-hint">↑↓ navega · Enter executa · Esc fecha</p>
+    </dialog>
+
     <div id="loading-overlay" class="loading-overlay" hidden>
       <div class="loading-card" role="status">
         <div class="orbit-loader"><span></span><span></span><span></span></div>
         <p class="eyebrow">DECODIFICANDO O LEITO</p>
-        <h2>Construindo as 10 linhas…</h2>
-        <p>Extraindo fatos, separando riscos e convertendo o plano em execução.</p>
+        <h2 id="loading-title">Construindo as 10 linhas…</h2>
+        <p id="loading-description">Extraindo fatos, separando riscos e convertendo o plano em execução.</p>
         <div class="loading-steps"><span class="is-active">Ler</span><span>Organizar</span><span>Renderizar</span></div>
+        <button id="cancel-loading" class="button button-small loading-cancel" type="button">Cancelar</button>
       </div>
     </div>
   </body>

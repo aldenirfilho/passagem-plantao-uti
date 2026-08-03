@@ -10,6 +10,17 @@ const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || "127.0.0.1";
 const MAX_BODY_BYTES = 36 * 1024 * 1024;
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.6";
+const MAX_CLINICAL_TEXT = 120_000;
+const MAX_ATTACHMENT_DATA_CHARS = 21 * 1024 * 1024;
+
+const PUBLIC_PATHS = new Set([
+  "/index.html",
+  "/styles.css",
+  "/app.js",
+  "/assets/logo-passagem-uti.png",
+  "/assets/icon-192.png",
+  "/assets/icon-512.png",
+]);
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -161,7 +172,9 @@ export function friendlyOpenAIError(status, result = {}) {
   }
   if (status === 429) return "A API atingiu o limite temporário de requisições. Aguarde alguns instantes e tente novamente.";
   if (status >= 500) return "A OpenAI está temporariamente indisponível. Tente novamente em alguns minutos.";
-  return result?.error?.message || `Falha da API (${status}).`;
+  if (status === 400) return "A API recusou o formato ou o conteúdo enviado. Revise os anexos e tente novamente.";
+  if (status === 403) return "O projeto da API não tem permissão para executar esta análise.";
+  return `Falha segura da API (${status}).`;
 }
 
 function json(res, status, payload) {
@@ -194,29 +207,65 @@ function readRequestBody(req) {
 }
 
 function sanitizeAttachments(attachments = []) {
-  if (!Array.isArray(attachments)) return [];
-  return attachments.slice(0, 8).flatMap((file) => {
+  return attachments.map((file) => {
     const name = String(file?.name || "arquivo").slice(0, 180);
     const type = String(file?.type || "application/octet-stream").slice(0, 120);
     const data = String(file?.data || "");
-    if (!data.startsWith("data:") || data.length > 18 * 1024 * 1024) return [];
 
     if (type.startsWith("image/")) {
-      return [{ type: "input_image", image_url: data, detail: "high" }];
+      return { type: "input_image", image_url: data, detail: "high" };
     }
 
     const input = { type: "input_file", filename: name, file_data: data };
     if (type === "application/pdf") input.detail = "auto";
-    return [input];
+    return input;
   });
 }
 
+export function validateRenderPayload(payload) {
+  const clinicalText = String(payload?.clinicalText || "");
+  const attachments = payload?.attachments;
+
+  if (clinicalText.length > MAX_CLINICAL_TEXT) {
+    return `O texto clínico ultrapassa ${MAX_CLINICAL_TEXT.toLocaleString("pt-BR")} caracteres. Divida o material antes de enviar.`;
+  }
+  if (attachments !== undefined && !Array.isArray(attachments)) return "A lista de anexos é inválida.";
+  if ((attachments || []).length > 8) return "Selecione no máximo 8 anexos por análise.";
+
+  for (const file of attachments || []) {
+    const name = String(file?.name || "arquivo");
+    const data = String(file?.data || "");
+    if (!data.startsWith("data:")) return `${name}: conteúdo do anexo inválido.`;
+    if (data.length > MAX_ATTACHMENT_DATA_CHARS) return `${name}: anexo codificado maior que o limite aceito.`;
+  }
+  if (!clinicalText.trim() && !(attachments || []).length) return "Adicione texto ou pelo menos um arquivo clínico.";
+  return "";
+}
+
+export function validateStructuredHandoff(structured, expectedBed) {
+  if (!structured || !Array.isArray(structured.handoff) || structured.handoff.length !== 10) {
+    return "A API não retornou os dez tópicos obrigatórios.";
+  }
+  if (structured.handoff.some((line, index) => line?.number !== index + 1)) {
+    return "A API retornou tópicos fora da ordem segura de 1 a 10.";
+  }
+  const normalizeBed = (value) => String(value || "").toUpperCase().replace(/\s+/g, "");
+  if (expectedBed && normalizeBed(structured.bed) !== normalizeBed(expectedBed)) {
+    return "A API retornou dados associados a outro leito; a resposta foi descartada.";
+  }
+  return "";
+}
+
 export function buildOpenAIRequest(payload) {
-  const clinicalText = String(payload?.clinicalText || "").trim().slice(0, 120_000);
+  const clinicalText = String(payload?.clinicalText || "").trim();
   const context = payload?.context || {};
   const userText = [
     `LEITO: ${String(context.bed || "NÃO INFORMADO")}`,
     `PACIENTE: ${String(context.patientName || "NÃO INFORMADO")}`,
+    `IDADE: ${String(context.age || "NÃO INFORMADO")}`,
+    `PRONTUÁRIO / ID: ${String(context.record || "NÃO INFORMADO")}`,
+    `ADMISSÃO: ${String(context.admission || "NÃO INFORMADO")}`,
+    `ESTADO DEFINIDO PELO MÉDICO: ${String(context.medicalAcuity || "NÃO DEFINIDO")}`,
     `MATERIAL CLÍNICO:\n${clinicalText || "Nenhum texto adicional; analisar somente os anexos."}`,
   ].join("\n\n");
 
@@ -262,12 +311,15 @@ async function renderHandoff(req, res) {
     return json(res, error.status || 400, { error: error.message || "JSON inválido." });
   }
 
-  if (!String(payload?.clinicalText || "").trim() && !payload?.attachments?.length) {
-    return json(res, 400, { error: "Adicione texto ou pelo menos um arquivo clínico." });
-  }
+  const payloadError = validateRenderPayload(payload);
+  if (payloadError) return json(res, payloadError.includes("ultrapassa") ? 413 : 400, { error: payloadError });
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 120_000);
+  const cancelOnDisconnect = () => {
+    if (!res.writableEnded) controller.abort();
+  };
+  res.once("close", cancelOnDisconnect);
 
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
@@ -296,6 +348,9 @@ async function renderHandoff(req, res) {
       return json(res, 502, { error: "A resposta não pôde ser interpretada com segurança." });
     }
 
+    const structureError = validateStructuredHandoff(structured, payload?.context?.bed);
+    if (structureError) return json(res, 502, { error: structureError });
+
     return json(res, 200, {
       ...structured,
       meta: { model: result.model || MODEL, responseId: result.id || null },
@@ -305,12 +360,14 @@ async function renderHandoff(req, res) {
     return json(res, 502, { error: message });
   } finally {
     clearTimeout(timeout);
+    res.off("close", cancelOnDisconnect);
   }
 }
 
 async function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const pathname = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+  if (!PUBLIC_PATHS.has(pathname)) return json(res, 404, { error: "Página não encontrada." });
   const filePath = path.resolve(ROOT, `.${pathname}`);
 
   if (!filePath.startsWith(`${ROOT}${path.sep}`)) return json(res, 403, { error: "Acesso negado." });
@@ -322,11 +379,12 @@ async function serveStatic(req, res) {
     res.writeHead(200, {
       "Content-Type": MIME_TYPES[path.extname(filePath).toLowerCase()] || "application/octet-stream",
       "Content-Length": content.length,
+      "Cache-Control": pathname.startsWith("/assets/") ? "public, max-age=86400" : "no-cache",
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "no-referrer",
       "Content-Security-Policy": "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
     });
-    res.end(content);
+    res.end(req.method === "HEAD" ? undefined : content);
   } catch {
     json(res, 404, { error: "Página não encontrada." });
   }
