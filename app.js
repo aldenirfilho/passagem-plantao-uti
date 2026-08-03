@@ -134,6 +134,7 @@ async function loadState() {
   state = {
     ...newState(),
     ...saved,
+    version: 3,
     settings: { ...newState().settings, ...(saved.settings || {}) },
     beds: Array.from({ length: 10 }, (_, index) => ({
       ...newBed(index + 1),
@@ -698,7 +699,7 @@ async function prepareBedAnalysis(bed) {
     admission: bed.admission,
     medicalAcuity: bed.acuity,
     clinicalText,
-    files: selectedFiles.map(({ name, type, size, lastModified }) => ({ name, type, size, lastModified })),
+    files: selectedFiles.map(({ id, name, type, size, lastModified }) => ({ id, name, type, size, lastModified })),
   }));
   return { selectedFiles, clinicalText, fingerprint };
 }
@@ -717,7 +718,9 @@ function applyAiResult(bed, result, fingerprint) {
   const existing = new Set(bed.checklist.map((item) => item.text.trim().toLocaleLowerCase("pt-BR")));
   (result.checklist_suggestions || []).slice(0, 12).forEach((suggestion) => {
     const text = String(suggestion.text || "").trim();
-    if (!text || existing.has(text.toLocaleLowerCase("pt-BR"))) return;
+    const key = text.toLocaleLowerCase("pt-BR");
+    if (!text || existing.has(key)) return;
+    existing.add(key);
     bed.checklist.push({
       id: crypto.randomUUID(),
       text,
@@ -1345,16 +1348,21 @@ function bindEvents() {
   $("#file-grid").addEventListener("change", async (event) => {
     const id = event.target.dataset.selectFile;
     if (!id) return;
+    let affectedBedId = state.activeBedId;
     const transaction = db.transaction("files", "readwrite");
     const store = transaction.objectStore("files");
     const record = await requestToPromise(store.get(id));
     if (record) {
+      affectedBedId = record.bedId;
       record.selected = event.target.checked;
       store.put(record);
     }
     await transactionDone(transaction);
-    activeBed().updatedAt = new Date().toISOString();
-    invalidateReadback(activeBed());
+    const affectedBed = state.beds.find((bed) => bed.id === affectedBedId);
+    if (affectedBed) {
+      affectedBed.updatedAt = new Date().toISOString();
+      invalidateReadback(affectedBed);
+    }
     scheduleSave();
     await renderFiles();
   });
@@ -1362,10 +1370,14 @@ function bindEvents() {
   $("#file-grid").addEventListener("click", async (event) => {
     const deleteId = event.target.dataset.deleteFile;
     const downloadId = event.target.dataset.downloadFile;
+    const affectedBedId = state.activeBedId;
     if (deleteId) {
       await deleteFile(deleteId);
-      activeBed().updatedAt = new Date().toISOString();
-      invalidateReadback(activeBed());
+      const affectedBed = state.beds.find((bed) => bed.id === affectedBedId);
+      if (affectedBed) {
+        affectedBed.updatedAt = new Date().toISOString();
+        invalidateReadback(affectedBed);
+      }
       scheduleSave();
       await renderFiles();
       renderBatteryRail();
@@ -1447,8 +1459,6 @@ function bindEvents() {
   });
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase("pt-BR") === "k") {
-      const isTyping = event.target.matches?.("input, textarea, select, [contenteditable='true']");
-      if (isTyping && !$("#command-dialog").open) return;
       event.preventDefault();
       openCommands();
     }

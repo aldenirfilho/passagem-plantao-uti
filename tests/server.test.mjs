@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import http from "node:http";
 import test from "node:test";
 import {
   HANDOFF_SCHEMA,
@@ -7,6 +8,7 @@ import {
   extractOutputText,
   friendlyOpenAIError,
   parseEnvText,
+  validateLocalApiRequest,
   validateRenderPayload,
   validateStructuredHandoff,
 } from "../server.mjs";
@@ -85,6 +87,22 @@ test("descarta resposta com tópicos fora de ordem ou de outro leito", () => {
   assert.match(validateStructuredHandoff(structured, "L4"), /outro leito/i);
 });
 
+test("protege a mesma chave contra chamadas de páginas externas", () => {
+  assert.deepEqual(validateLocalApiRequest({ headers: { host: "127.0.0.1:4173", "content-type": "text/plain" } }), {
+    status: 415,
+    error: "A API local aceita somente JSON.",
+  });
+  assert.equal(validateLocalApiRequest({
+    headers: { host: "127.0.0.1:4173", origin: "http://127.0.0.1:4173", "content-type": "application/json; charset=utf-8" },
+  }), null);
+  assert.equal(validateLocalApiRequest({
+    headers: { host: "127.0.0.1:4173", origin: "https://pagina-maliciosa.example", "content-type": "application/json" },
+  })?.status, 403);
+  assert.equal(validateLocalApiRequest({
+    headers: { host: "pagina-maliciosa.example", origin: "http://pagina-maliciosa.example", "content-type": "application/json" },
+  })?.status, 403);
+});
+
 test("servidor expõe health check sem depender de chamada externa", async (t) => {
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -103,8 +121,26 @@ test("servidor nunca publica chave, código interno ou testes", async (t) => {
   t.after(() => server.close());
   const { port } = server.address();
 
-  for (const pathname of ["/.env", "/.env.local", "/server.mjs", "/package.json", "/tests/server.test.mjs"]) {
+  for (const pathname of ["/.env", "/.env.local", "/.env.example", "/server.mjs", "/package.json", "/tests/server.test.mjs"]) {
     const response = await fetch(`http://127.0.0.1:${port}${pathname}`);
     assert.equal(response.status, 404, pathname);
   }
+});
+
+test("URL percentualmente malformada retorna 400 sem derrubar o servidor", async (t) => {
+  const server = createServer();
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const { port } = server.address();
+
+  const status = await new Promise((resolve, reject) => {
+    const request = http.get({ hostname: "127.0.0.1", port, path: "/%ZZ" }, (response) => {
+      response.resume();
+      resolve(response.statusCode);
+    });
+    request.on("error", reject);
+  });
+  assert.equal(status, 400);
+  const health = await fetch(`http://127.0.0.1:${port}/api/health`);
+  assert.equal(health.status, 200);
 });
