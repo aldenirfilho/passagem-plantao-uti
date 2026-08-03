@@ -4,19 +4,27 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  MAX_ATTACHMENT_COUNT,
+  MAX_ATTACHMENT_DATA_URL_CHARS,
+  MAX_ATTACHMENT_TOTAL_BYTES,
+  normalizeAttachmentMime,
+  validateAttachmentDataUrl,
+  validateAttachmentMetadata,
+} from "./attachment-contract.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 4173);
-const HOST = process.env.HOST || "127.0.0.1";
+const HOST = "127.0.0.1";
 const MAX_BODY_BYTES = 36 * 1024 * 1024;
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.6";
 const MAX_CLINICAL_TEXT = 120_000;
-const MAX_ATTACHMENT_DATA_CHARS = 21 * 1024 * 1024;
 
 const PUBLIC_PATHS = new Set([
   "/index.html",
   "/styles.css",
   "/app.js",
+  "/attachment-contract.mjs",
   "/tutorial.html",
   "/tutorial.css",
   "/assets/logo-passagem-uti.png",
@@ -25,13 +33,17 @@ const PUBLIC_PATHS = new Set([
   "/assets/icon-192.png",
   "/assets/icon-512.png",
   "/assets/icons.svg",
-  "/output/pdf/Tutorial_Ilustrado_Passagem_UTI_v4.pdf",
+  "/assets/tutorial/capsula-uti-v5.webp",
+  "/assets/tutorial/central-coordenador-v5.webp",
+  "/assets/tutorial/cockpit-plantonista-v5.webp",
+  "/output/pdf/Tutorial_Ilustrado_Passagem_UTI_v5.pdf",
 ]);
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
@@ -216,9 +228,18 @@ function readRequestBody(req) {
 
 function sanitizeAttachments(attachments = []) {
   return attachments.map((file) => {
-    const name = String(file?.name || "arquivo").slice(0, 180);
-    const type = String(file?.type || "application/octet-stream").slice(0, 120);
-    const data = String(file?.data || "");
+    const name = String(file?.name || "arquivo")
+      .replace(/[\\/\u0000-\u001f\u007f]/g, "_")
+      .slice(0, 180);
+    const descriptor = validateAttachmentMetadata({ name: file?.name, type: file?.type });
+    const type = descriptor.ok ? descriptor.mime : normalizeAttachmentMime(file?.type) || "application/octet-stream";
+    const rawData = String(file?.data || "");
+    const marker = ";base64,";
+    const markerOffset = rawData.indexOf(marker, 5);
+    const encoded = rawData.startsWith("data:") && markerOffset >= 5
+      ? rawData.slice(markerOffset + marker.length)
+      : null;
+    const data = descriptor.ok && encoded !== null ? `data:${type};base64,${encoded}` : rawData;
 
     if (type.startsWith("image/")) {
       return { type: "input_image", image_url: data, detail: "high" };
@@ -238,13 +259,18 @@ export function validateRenderPayload(payload) {
     return `O texto clínico ultrapassa ${MAX_CLINICAL_TEXT.toLocaleString("pt-BR")} caracteres. Divida o material antes de enviar.`;
   }
   if (attachments !== undefined && !Array.isArray(attachments)) return "A lista de anexos é inválida.";
-  if ((attachments || []).length > 8) return "Selecione no máximo 8 anexos por análise.";
+  if ((attachments || []).length > MAX_ATTACHMENT_COUNT) return `Selecione no máximo ${MAX_ATTACHMENT_COUNT} anexos por análise.`;
 
+  let totalBytes = 0;
   for (const file of attachments || []) {
     const name = String(file?.name || "arquivo");
+    const type = String(file?.type || "application/octet-stream");
     const data = String(file?.data || "");
-    if (!data.startsWith("data:")) return `${name}: conteúdo do anexo inválido.`;
-    if (data.length > MAX_ATTACHMENT_DATA_CHARS) return `${name}: anexo codificado maior que o limite aceito.`;
+    if (data.length > MAX_ATTACHMENT_DATA_URL_CHARS) return `${name}: anexo codificado maior que o limite aceito.`;
+    const validated = validateAttachmentDataUrl({ name, type, data });
+    if (!validated.ok) return `${name}: ${validated.reason}`;
+    totalBytes += validated.size;
+    if (totalBytes > MAX_ATTACHMENT_TOTAL_BYTES) return "Anexos acima de 22 MB no total; desmarque alguns arquivos.";
   }
   if (!clinicalText.trim() && !(attachments || []).length) return "Adicione texto ou pelo menos um arquivo clínico.";
   return "";
@@ -350,7 +376,7 @@ async function renderHandoff(req, res) {
   }
 
   const payloadError = validateRenderPayload(payload);
-  if (payloadError) return json(res, payloadError.includes("ultrapassa") ? 413 : 400, { error: payloadError });
+  if (payloadError) return json(res, /ultrapassa|maior|acima/i.test(payloadError) ? 413 : 400, { error: payloadError });
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 120_000);

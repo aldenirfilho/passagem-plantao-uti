@@ -62,7 +62,7 @@
           <svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-copy"></use></svg>
           <span class="tool-label">Copiar plantão</span>
         </button>
-        <button id="export-data" class="button button-ghost header-tool" type="button">
+        <button id="export-data" class="button button-ghost header-tool" type="button" aria-haspopup="dialog" aria-controls="transfer-dialog">
           <svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-export"></use></svg>
           <span class="tool-label">Exportar</span>
         </button>
@@ -72,6 +72,31 @@
         </a>
       </nav>
     </header>
+
+    <section class="continuity-panel" aria-labelledby="continuity-title">
+      <div class="continuity-professional">
+        <span id="continuity-avatar" class="continuity-avatar" aria-hidden="true">UTI</span>
+        <div>
+          <p id="continuity-kicker" class="eyebrow">PLANTONISTA VIGENTE</p>
+          <h2 id="continuity-title">Nenhum plantonista vigente</h2>
+          <p id="continuity-credentials">Preencha nome e CRM abaixo para assumir este plantão.</p>
+        </div>
+      </div>
+      <dl class="continuity-facts">
+        <div><dt>Papel</dt><dd id="continuity-role">—</dd></div>
+        <div><dt>Modo</dt><dd id="continuity-mode">—</dd></div>
+        <div><dt>Entrada</dt><dd id="continuity-start">—</dd></div>
+        <div><dt>Saída</dt><dd id="continuity-end">—</dd></div>
+        <div><dt>Tempo informativo</dt><dd id="continuity-elapsed">—</dd></div>
+      </dl>
+      <div class="continuity-actions">
+        <span class="local-status-chip"><span aria-hidden="true">●</span> Local neste dispositivo</span>
+        <button id="assume-shift" class="button button-primary" type="button">Assumir / transferir</button>
+        <button id="end-shift" class="button button-small" type="button" disabled>Encerrar plantão</button>
+        <button id="open-opportunities" class="button button-small" type="button" aria-haspopup="dialog" aria-controls="opportunity-dialog">Oportunidades e histórico</button>
+      </div>
+      <p class="continuity-boundary"><strong>Continuidade local-first:</strong> este painel não é tempo real nem monitora pacientes. Sincronização online institucional, perfis remotos e intervenções entre dispositivos permanecem no roadmap seguro. UTI oficial, Coordenação e autoria são perfis autodeclarados neste dispositivo: não verificam identidade, CRM, RQE, vínculo ou credencial.</p>
+    </section>
 
     <section class="identity-panel" aria-labelledby="identity-title">
       <div class="section-heading compact">
@@ -93,7 +118,30 @@
         </label>
         <label>
           <span>CRM / UF</span>
-          <input data-setting="crm" type="text" autocomplete="off" placeholder="CRM-CE 16587" />
+          <input data-setting="crm" type="text" autocomplete="off" placeholder="CRM-UF 00000" />
+        </label>
+        <label>
+          <span>Especialidade</span>
+          <input data-setting="specialty" type="text" autocomplete="organization-title" maxlength="160" placeholder="Ex.: Medicina Intensiva" />
+        </label>
+        <label>
+          <span>RQE</span>
+          <input data-setting="rqe" type="text" autocomplete="off" maxlength="80" placeholder="Ex.: RQE 00000" />
+        </label>
+        <label>
+          <span>Papel neste plantão</span>
+          <select data-setting="role">
+            <option value="PLANTONISTA">Plantonista</option>
+            <option value="COORDENADOR">Coordenador</option>
+            <option value="DIARISTA">Diarista</option>
+          </select>
+        </label>
+        <label>
+          <span>Modo de adesão</span>
+          <select data-setting="careMode">
+            <option value="UTI_OFICIAL">UTI cadastrada / oficial</option>
+            <option value="AD_HOC">Plantão ad hoc / extraoficial</option>
+          </select>
         </label>
         <label>
           <span>Cidade / UF</span>
@@ -136,6 +184,8 @@
           </div>
         </div>
 
+        <p class="battery-meaning"><strong>Bateria = completude registrada, não desempenho.</strong> Ela combina contexto, 10 linhas, três atividades manuais e read-back. Pendência ativa, alerta ou lacuna sinalizada pela IA impedem 100%. Tempo, velocidade e comparação entre profissionais não alteram a carga.</p>
+
         <div id="bed-rail" class="battery-rail" role="group" aria-label="Seleção dos dez leitos"></div>
       </section>
 
@@ -160,7 +210,7 @@
                 <option value="CRÍTICO">Crítico</option>
               </select>
             </label>
-            <button id="print-bed" class="icon-button" type="button" title="Imprimir leito" aria-label="Imprimir leito"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-print"></use></svg></button>
+            <button id="print-bed" class="icon-button" type="button" title="Abrir PDF / impressão do leito" aria-label="Abrir PDF ou impressão do leito"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-print"></use></svg></button>
             <button id="clear-bed" class="icon-button danger-button" type="button" title="Limpar leito" aria-label="Limpar leito"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-trash"></use></svg></button>
           </div>
         </div>
@@ -176,13 +226,27 @@
           </label>
           <label>
             <span>ID / prontuário</span>
-            <input id="patient-record" type="text" autocomplete="off" placeholder="Opcional" />
+            <input id="patient-record" type="text" autocomplete="off" placeholder="Obrigatório para read-back e saídas" />
           </label>
           <label>
             <span>Admissão</span>
             <input id="patient-admission" type="date" />
           </label>
         </div>
+
+        <section class="bed-activities" aria-labelledby="bed-activities-title">
+          <div>
+            <p class="eyebrow">RESOLUTIVIDADE REGISTRADA</p>
+            <h3 id="bed-activities-title">Atividades manuais do leito</h3>
+            <p>Marque apenas após executar ou revisar. Os registros aumentam a completude da bateria, nunca uma nota de velocidade.</p>
+          </div>
+          <div class="bed-activity-checks" role="group" aria-label="Atividades do leito ativo">
+            <label><input type="checkbox" data-activity-field="evolutionDone" /> <span>Evolução concluída</span></label>
+            <label><input type="checkbox" data-activity-field="prescriptionReviewed" /> <span>Prescrição revisada</span></label>
+            <label><input type="checkbox" data-activity-field="examsReviewed" /> <span>Exames revisados</span></label>
+          </div>
+          <p id="bed-activity-meta" class="bed-activity-meta">0 de 3 atividades registradas.</p>
+        </section>
 
         <nav class="tabs" role="tablist" aria-label="Sessões do leito">
           <button id="tab-button-render" class="tab is-active" data-tab="render" type="button" role="tab" aria-controls="tab-render" aria-selected="true" tabindex="0">
@@ -297,7 +361,7 @@
                   id="file-input"
                   type="file"
                   multiple
-                  accept="image/*,.pdf,.txt,.md,.json,.csv,.doc,.docx,.rtf,.odt,.xls,.xlsx,.ppt,.pptx" />
+                  accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.md,.json,.csv,.doc,.docx,.rtf,.odt,.xls,.xlsx,.ppt,.pptx" />
                 <span class="drop-icon" aria-hidden="true"><svg class="ui-icon"><use href="./assets/icons.svg#icon-plus"></use></svg></span>
                 <strong>Arraste arquivos ou clique para selecionar</strong>
                 <small>Até 8 arquivos por análise · máximo de 15 MB por arquivo e 22 MB no envio</small>
@@ -332,9 +396,9 @@
               <div id="checklist-items" class="checklist-items"></div>
             </section>
 
-            <aside class="checklist-guide">
+            <aside class="checklist-guide" aria-labelledby="checklist-guide-title">
               <p class="eyebrow">ANTILOOP</p>
-              <h3>Uma boa pendência responde:</h3>
+              <h3 id="checklist-guide-title">Uma boa pendência responde:</h3>
               <ul>
                 <li><strong>O quê?</strong> ação concreta</li>
                 <li><strong>Quando?</strong> horário ou gatilho</li>
@@ -369,7 +433,7 @@
               <label><input type="checkbox" data-readback-field="tasksUnderstood" /> Compreendi pendências e gatilhos</label>
             </div>
             <div class="readback-actions">
-              <p>Qualquer alteração clínica posterior invalida automaticamente este aceite.</p>
+              <p>Exige dois identificadores: nome do paciente e prontuário/ID. Idade e data de admissão não substituem o identificador institucional. Qualquer alteração clínica posterior invalida automaticamente este aceite.</p>
               <button id="confirm-readback" class="button button-primary" type="button"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-check"></use></svg> Confirmar recebimento</button>
             </div>
           </section>
@@ -386,6 +450,49 @@
     </footer>
 
     <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+    <dialog id="opportunity-dialog" class="app-dialog opportunity-dialog" aria-labelledby="opportunity-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">CONTINUIDADE · EQUIDADE · SEM RANKING</p>
+          <h2 id="opportunity-title">Oportunidades do plantão</h2>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="opportunity-dialog" aria-label="Fechar oportunidades"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-close"></use></svg></button>
+      </div>
+      <p class="opportunity-disclaimer"><strong>Foto local do que foi registrado.</strong> Não é vigilância clínica, placar, prescrição ou substituto do prontuário. A ordem fixa L1–L10 evita ranking de pacientes ou profissionais.</p>
+      <div id="opportunity-summary" class="opportunity-summary"></div>
+      <div class="opportunity-body">
+        <section aria-labelledby="opportunity-beds-title">
+          <h3 id="opportunity-beds-title">Distribuição por leito</h3>
+          <div id="opportunity-list" class="opportunity-list"></div>
+        </section>
+
+        <aside class="coordination-panel" aria-labelledby="coordination-title">
+          <p class="eyebrow">INTERVENÇÃO HUMANA AUDITADA</p>
+          <h3 id="coordination-title">Coordenação local</h3>
+          <p id="coordination-access" class="coordination-access">Assuma como coordenador para registrar uma nota ou tarefa.</p>
+          <form id="coordination-form">
+            <fieldset id="coordination-fields" disabled>
+              <legend class="sr-only">Registrar nota ou tarefa da coordenação</legend>
+              <label><span>Leito</span><select id="coordination-bed"></select></label>
+              <label><span>Tipo</span><select id="coordination-kind"><option value="NOTE">Nota de coordenação</option><option value="TASK">Tarefa de coordenação</option></select></label>
+              <label class="coordination-text"><span>Registro objetivo</span><textarea id="coordination-text" maxlength="600" rows="3" placeholder="Observação operacional, sem prescrever conduta."></textarea></label>
+              <div id="coordination-task-options" class="coordination-task-options" hidden>
+                <label><span>Prioridade</span><select id="coordination-priority"><option value="alta">Alta</option><option value="media" selected>Média</option><option value="baixa">Baixa</option></select></label>
+                <label><span>Prazo / gatilho</span><input id="coordination-due" type="text" maxlength="80" placeholder="Ex.: antes da visita" /></label>
+              </div>
+              <button class="button button-primary" type="submit">Registrar com autoria</button>
+            </fieldset>
+          </form>
+          <p class="coordination-boundary">A coordenação adiciona memória operacional; nunca gera ou executa prescrição automaticamente. O perfil de Coordenador é autodeclarado localmente e não comprova identidade, CRM, RQE, vínculo ou autorização institucional.</p>
+        </aside>
+
+        <section class="audit-panel" aria-labelledby="audit-title">
+          <div class="panel-title-row"><h3 id="audit-title">Histórico e auditoria local</h3><span id="audit-count" class="local-chip">0 eventos</span></div>
+          <div id="audit-list" class="audit-list"></div>
+        </section>
+      </div>
+    </dialog>
 
     <dialog id="radar-dialog" class="app-dialog radar-dialog" aria-labelledby="radar-title">
       <div class="dialog-header">
@@ -435,6 +542,78 @@
       </div>
       <div id="notification-list" class="notification-list" aria-live="polite"></div>
     </dialog>
+
+    <dialog id="transfer-dialog" class="app-dialog transfer-dialog" aria-labelledby="transfer-title">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">TRANSFERÊNCIA LOCAL CONTROLADA</p>
+          <h2 id="transfer-title">Exportar, compartilhar e importar</h2>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="transfer-dialog" aria-label="Fechar central de transferência"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-close"></use></svg></button>
+      </div>
+      <p class="transfer-privacy"><svg class="ui-icon" aria-hidden="true"><use href="./assets/icons.svg#icon-info"></use></svg><span><strong>Privacidade primeiro.</strong> Revise e desidentifique os dados conforme a LGPD e a política institucional. Arquivos são criados localmente; somente o botão do WhatsApp abre um serviço externo, sempre após sua confirmação.</span></p>
+
+      <div class="transfer-body">
+        <section class="transfer-card" aria-labelledby="text-export-title">
+          <div class="transfer-card-heading">
+            <span class="transfer-card-icon" aria-hidden="true"><svg class="ui-icon"><use href="./assets/icons.svg#icon-export"></use></svg></span>
+            <div><p class="eyebrow">LEITURA UNIVERSAL</p><h3 id="text-export-title">TXT, Markdown e PDF</h3></div>
+          </div>
+          <p>Gere um documento do leito ativo (<strong id="transfer-active-bed">L1</strong>) ou somente dos leitos preenchidos do plantão. Para PDF, o navegador abre a tela de impressão: escolha <strong>Salvar como PDF</strong>.</p>
+          <div class="transfer-action-grid">
+            <button class="button button-small" type="button" data-export-scope="bed" data-export-format="txt">Leito · TXT</button>
+            <button class="button button-small" type="button" data-export-scope="bed" data-export-format="md">Leito · Markdown</button>
+            <button class="button button-small" type="button" data-export-scope="shift" data-export-format="txt">Plantão · TXT</button>
+            <button class="button button-small" type="button" data-export-scope="shift" data-export-format="md">Plantão · Markdown</button>
+            <button class="button button-small print-export-button" type="button" data-print-scope="bed">Leito · PDF / Imprimir</button>
+            <button class="button button-small print-export-button" type="button" data-print-scope="shift">Plantão · PDF / Imprimir</button>
+          </div>
+        </section>
+
+        <section class="transfer-card whatsapp-card" aria-labelledby="whatsapp-title">
+          <div class="transfer-card-heading">
+            <span class="transfer-card-icon" aria-hidden="true">WA</span>
+            <div><p class="eyebrow">ABERTURA EXPLÍCITA</p><h3 id="whatsapp-title">Compartilhar via WhatsApp</h3></div>
+          </div>
+          <p>Prepara a mensagem com formatação e abre o WhatsApp para revisão. O aplicativo nunca escolhe contato nem envia automaticamente.</p>
+          <div class="transfer-action-grid">
+            <button class="button button-small whatsapp-button" type="button" data-whatsapp-scope="bed">Abrir leito ativo</button>
+            <button class="button button-small whatsapp-button" type="button" data-whatsapp-scope="shift">Abrir plantão completo</button>
+          </div>
+        </section>
+
+        <section class="transfer-card capsule-card" aria-labelledby="capsule-title">
+          <div class="transfer-card-heading">
+            <span class="transfer-card-icon capsule-symbol" aria-hidden="true">10</span>
+            <div><p class="eyebrow">FORMATO PORTÁTIL VERSIONADO</p><h3 id="capsule-title">Cápsula UTI</h3></div>
+          </div>
+          <p>Transporta texto clínico, 10 linhas, checklist e atividades. Somente a Cápsula de plantão fotografa continuidade/auditoria limitada, que nunca é ativada na importação. A de leito isola um único leito. Não inclui anexos, chave de API, notificações ou código executável.</p>
+          <div class="transfer-action-grid">
+            <button class="button button-small" type="button" data-export-capsule="bed">Exportar leito</button>
+            <button class="button button-small" type="button" data-export-capsule="shift">Exportar plantão</button>
+          </div>
+
+          <div class="capsule-import-zone">
+            <label for="capsule-file-input"><span>Selecionar Cápsula UTI · máximo 4 MiB</span><input id="capsule-file-input" type="file" accept=".capsula-uti.json,application/json" /></label>
+            <p id="capsule-import-status" class="capsule-import-status" role="status" aria-live="polite">Nenhum arquivo selecionado.</p>
+            <section id="capsule-preview" class="capsule-preview" aria-labelledby="capsule-preview-title" hidden>
+              <h4 id="capsule-preview-title">Prévia minimizada antes da importação</h4>
+              <p class="capsule-unverified"><strong>Arquivo não assinado e não verificado.</strong> A prévia não autentica autoria, identidade, CRM, RQE, vínculo ou integridade de origem. A importação encerra qualquer plantonista vigente local e exige uma nova assunção explícita.</p>
+              <dl id="capsule-preview-context" class="capsule-preview-context"></dl>
+              <ul id="capsule-preview-beds" class="capsule-preview-beds" aria-label="Leitos contidos na Cápsula"></ul>
+            </section>
+            <fieldset class="capsule-strategy">
+              <legend>Como aplicar o arquivo?</legend>
+              <label><input type="radio" name="capsule-strategy" value="merge" checked /><span><strong>Mesclar</strong> · troca os leitos da Cápsula, remove os anexos deles e preserva os demais; em Cápsula de leito, mantém o cabeçalho atual.</span></label>
+              <label><input type="radio" name="capsule-strategy" value="replace" /><span><strong>Substituir</strong> · troca todo o plantão e apaga os anexos locais atuais.</span></label>
+            </fieldset>
+            <button id="import-capsule" class="button button-primary" type="button" disabled>Validar e importar</button>
+          </div>
+        </section>
+      </div>
+    </dialog>
+
+    <section id="print-document" class="print-document" aria-hidden="true" aria-label="Documento preparado para impressão"></section>
 
     <div id="loading-overlay" class="loading-overlay" aria-hidden="true" hidden>
       <div class="loading-card" role="dialog" aria-modal="true" aria-labelledby="loading-title" aria-describedby="loading-description">

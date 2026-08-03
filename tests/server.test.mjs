@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import http from "node:http";
 import test from "node:test";
+import { MAX_ATTACHMENT_FILE_BYTES } from "../attachment-contract.mjs";
+import { odtZip, officeZip, storedZip } from "./attachment-fixtures.mjs";
 import {
   HANDOFF_SCHEMA,
   buildOpenAIRequest,
@@ -75,6 +78,120 @@ test("rejeita truncamento silencioso e anexos codificados fora do limite", () =>
   );
 });
 
+test("aceita somente extensões, MIME e assinaturas clínicas permitidas", () => {
+  const pngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]).toString("base64");
+  assert.equal(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "imagem.png", type: "image/png", data: `data:image/png;base64,${pngHeader}` }],
+  }), "");
+  assert.match(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "vetor.svg", type: "image/svg+xml", data: "data:image/svg+xml;base64,PHN2Zz4=" }],
+  }), /formato não permitido/i);
+  assert.match(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "pagina.html", type: "text/html", data: "data:text/html;base64,PGgxPng8L2gxPg==" }],
+  }), /formato não permitido/i);
+  assert.match(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "laudo.pdf", type: "application/pdf", data: "data:application/pdf;base64,AA==" }],
+  }), /assinatura do arquivo/i);
+  assert.match(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "laudo.pdf", type: "text/plain", data: "data:text/plain;base64,b2s=" }],
+  }), /tipo e extensão/i);
+});
+
+test("servidor revalida bytes integrais e MIME genérico não contorna o contrato", () => {
+  const dataUrl = (mime, bytes) => `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`;
+  assert.equal(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "laudo.pdf", type: "application/octet-stream", data: dataUrl("application/octet-stream", "%PDF-1.7\n") }],
+  }), "");
+  assert.match(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "programa.pdf", type: "application/octet-stream", data: dataUrl("application/octet-stream", Buffer.from([0x4d, 0x5a, 0x90])) }],
+  }), /executável/i);
+  assert.match(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "elf.txt", type: "binary/octet-stream", data: dataUrl("", Buffer.from([0x7f, 0x45, 0x4c, 0x46])) }],
+  }), /executável/i);
+  assert.match(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "pagina.txt", type: "text/plain", data: dataUrl("text/plain", `${" ".repeat(5_000)}<svg></svg>`) }],
+  }), /HTML\/SVG/i);
+});
+
+test("servidor exige base64 estritamente canônico", () => {
+  for (const data of [
+    "data:text/plain;base64,Zh==",
+    "data:text/plain;base64,Zg=",
+    "data:text/plain;base64,Zg==\n",
+    "data:text/plain;base64,Zg==AAAA",
+  ]) {
+    assert.match(validateRenderPayload({
+      clinicalText: "ok",
+      attachments: [{ name: "nota.txt", type: "text/plain", data }],
+    }), /base64|conteúdo do anexo inválido/i, data);
+  }
+});
+
+test("servidor distingue Office/OpenDocument de ZIP arbitrário renomeado", () => {
+  const dataUrl = (type, bytes) => `data:${type};base64,${Buffer.from(bytes).toString("base64")}`;
+  const docxType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  assert.equal(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "evolucao.docx", type: docxType, data: dataUrl(docxType, officeZip("docx")) }],
+  }), "");
+  assert.match(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "renomeado.docx", type: "application/octet-stream", data: dataUrl("application/octet-stream", storedZip([["nota.txt", "qualquer"]])) }],
+  }), /ZIP renomeado|estrutura interna/i);
+
+  const odtType = "application/vnd.oasis.opendocument.text";
+  assert.equal(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "evolucao.odt", type: odtType, data: dataUrl(odtType, odtZip()) }],
+  }), "");
+  assert.match(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "renomeado.odt", type: odtType, data: dataUrl(odtType, odtZip("application/zip")) }],
+  }), /ZIP renomeado|estrutura interna/i);
+});
+
+test("servidor valida assinaturas de Office legado e RTF", () => {
+  const dataUrl = (type, bytes) => `data:${type};base64,${Buffer.from(bytes).toString("base64")}`;
+  const ole = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0x00]);
+  assert.equal(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "antigo.doc", type: "application/msword", data: dataUrl("application/msword", ole) }],
+  }), "");
+  assert.match(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "falso.doc", type: "application/msword", data: dataUrl("application/msword", "texto") }],
+  }), /assinatura do arquivo/i);
+  assert.equal(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "nota.rtf", type: "application/rtf", data: dataUrl("application/rtf", "{\\rtf1 conteúdo}") }],
+  }), "");
+  assert.match(validateRenderPayload({
+    clinicalText: "ok",
+    attachments: [{ name: "falso.rtf", type: "application/rtf", data: dataUrl("application/rtf", "texto") }],
+  }), /assinatura do arquivo/i);
+});
+
+test("servidor aplica 15 MiB por arquivo e 22 MiB no conjunto pelos bytes decodificados", () => {
+  const pdf = (size) => {
+    const bytes = Buffer.alloc(size, 0x20);
+    bytes.write("%PDF-", 0, "ascii");
+    return { name: "laudo.pdf", type: "application/pdf", data: `data:application/pdf;base64,${bytes.toString("base64")}` };
+  };
+  assert.match(validateRenderPayload({ clinicalText: "ok", attachments: [pdf(MAX_ATTACHMENT_FILE_BYTES + 1)] }), /15 MB|maior/i);
+  const elevenMiB = 11 * 1024 * 1024;
+  assert.equal(validateRenderPayload({ clinicalText: "ok", attachments: [pdf(elevenMiB), pdf(elevenMiB)] }), "");
+  assert.match(validateRenderPayload({ clinicalText: "ok", attachments: [pdf(elevenMiB), pdf(elevenMiB + 1)] }), /22 MB|total/i);
+});
+
 test("descarta resposta com tópicos fora de ordem ou de outro leito", () => {
   const structured = {
     bed: "L3",
@@ -101,6 +218,12 @@ test("protege a mesma chave contra chamadas de páginas externas", () => {
   assert.equal(validateLocalApiRequest({
     headers: { host: "pagina-maliciosa.example", origin: "http://pagina-maliciosa.example", "content-type": "application/json" },
   })?.status, 403);
+});
+
+test("o processo principal permanece fixo no loopback", () => {
+  const source = readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
+  assert.match(source, /const HOST = "127\.0\.0\.1";/);
+  assert.doesNotMatch(source, /process\.env\.HOST/);
 });
 
 test("servidor expõe health check sem depender de chamada externa", async (t) => {
@@ -137,9 +260,13 @@ test("servidor publica cockpit, ícones locais e tutorial ilustrado", async (t) 
     ["/", "text/html"],
     ["/tutorial.html", "text/html"],
     ["/tutorial.css", "text/css"],
+    ["/attachment-contract.mjs", "text/javascript"],
     ["/assets/icons.svg", "image/svg+xml"],
     ["/assets/logo-passagem-uti-aero.png", "image/png"],
-    ["/output/pdf/Tutorial_Ilustrado_Passagem_UTI_v4.pdf", "application/pdf"],
+    ["/assets/tutorial/cockpit-plantonista-v5.webp", "image/webp"],
+    ["/assets/tutorial/central-coordenador-v5.webp", "image/webp"],
+    ["/assets/tutorial/capsula-uti-v5.webp", "image/webp"],
+    ["/output/pdf/Tutorial_Ilustrado_Passagem_UTI_v5.pdf", "application/pdf"],
   ];
   for (const [pathname, type] of expected) {
     const response = await fetch(`http://127.0.0.1:${port}${pathname}`);

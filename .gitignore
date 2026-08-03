@@ -4,3 +4,11 @@
 node_modules/
 coverage/
 *.log
+*.zip
+*.capsula-uti.json
+exports/
+clinical-data/
+__pycache__/
+*.pyc
+output/archive-v4/
+docs/assets/screenshots/*.png

@@ -1,13 +1,20 @@
 {
   "name": "passagem-plantao-uti",
-  "version": "4.0.0",
+  "version": "5.0.0-rc.1",
   "private": true,
   "type": "module",
   "description": "Passagem de plantão local-first para UTIs adultas com 10 leitos e renderização clínica assistida por GPT.",
   "scripts": {
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "test:e2e": "node scripts/qa-browser.mjs",
+    "build:release": "bash scripts/build-release.sh"
+  },
+  "devDependencies": {
+    "@sparticuz/chromium": "149.0.0",
+    "axe-core": "4.12.1",
+    "puppeteer-core": "25.4.0"
   },
   "engines": {
     "node": ">=20"
