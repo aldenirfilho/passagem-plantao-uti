@@ -64,7 +64,7 @@ Apple Notes/iCloud não possuem conector gravável disponível nesta sessão; fo
 
 | Marco | Ação |
 |---|---|
-| D0 | publicar RC1 em PR draft, Drive/Notion/Library e entregar pacote seguro |
+| D0 | concluído: RC1 publicada em PR draft e espelhada sem PHI/segredos; pacote seguro entregue separadamente |
 | D1 | revisar feedback técnico e repetir suíte/varredura de segredos |
 | D7 | executar piloto sintético com perfis Plantonista/Coordenador/Diarista |
 | D14 | fechar perigos, usabilidade, métricas não punitivas e decisões de arquitetura |
@@ -91,10 +91,10 @@ Apple Notes/iCloud não possuem conector gravável disponível nesta sessão; fo
 
 ### Arquivamento
 
-- GitHub: publicação na branch/PR draft pendente do commit final;
-- Google Drive: estrutura criada; lote final pendente;
-- Notion: página de produto pendente;
-- ChatGPT Library: pasta criada; lote final pendente;
+- GitHub: RC1 publicada na [PR draft #1](https://github.com/aldenirfilho/passagem-plantao-uti/pull/1), sem merge ou promoção para produção;
+- Google Drive: documentação, governança, visuais sanitizados e release organizados no [espelho sem dados clínicos](https://drive.google.com/drive/folders/1RO5kmFtcBJoeeYEDZ6pjLKrD4NaH1LaZ);
+- Notion: [página de produto e Cápsula UTI](https://app.notion.com/p/3b14e3810a8281558649c115f098e9eb) criada com a fronteira atual/futuro;
+- ChatGPT Library: 18 documentos/capturas arquivados em `/Turbo TEMI/Passagem UTI v5`; imagens geradas nesta revisão seguem o salvamento automático da plataforma e não foram duplicadas manualmente;
 - Notes/iCloud: importação manual pendente por indisponibilidade de conector gravável;
 - credencial e material clínico: deliberadamente não arquivados.
 
