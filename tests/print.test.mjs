@@ -20,7 +20,7 @@ function printableState() {
   };
   assumeShift(state, {
     doctorName: "Médica Teste",
-    crm: "CRM-CE 00001",
+    crm: "CRM-DEMO-A",
     specialty: "Medicina Intensiva",
     rqe: "RQE 00000",
     role: "PLANTONISTA",
@@ -45,7 +45,7 @@ function printableState() {
   );
   l1.readback = {
     receiverName: "Médico Receptor",
-    receiverCrm: "CRM-CE 00002",
+    receiverCrm: "CRM-DEMO-B",
     linesReviewed: true,
     risksReviewed: true,
     tasksUnderstood: true,
@@ -78,7 +78,7 @@ test("modelo impresso contém atividades, somente pendências ativas e aceite", 
   assert.deepEqual(bed.activities.map((item) => item.done), [true, true, false]);
   assert.deepEqual(bed.pending, [{ text: "Reavaliar antes da visita", priority: "alta", due: "10:00" }]);
   assert.equal(bed.acceptance.confirmed, true);
-  assert.equal(bed.acceptance.receiverCrm, "CRM-CE 00002");
+  assert.equal(bed.acceptance.receiverCrm, "CRM-DEMO-B");
   assert.equal(bed.acceptance.tasksUnderstood, true);
   assert.deepEqual(bed.alerts, ["Revisar perfusão"]);
   assert.deepEqual(bed.missing, ["Diurese das últimas 6h"]);

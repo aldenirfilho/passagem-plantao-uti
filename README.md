@@ -157,4 +157,6 @@ Esses destinos recebem somente código, documentação, imagens demonstrativas e
 
 ## Licenciamento e comercialização
 
-Nenhuma licença de distribuição comercial foi definida ainda. Antes de monetizar ou distribuir, escolher licença, revisar propriedade intelectual e marcas, definir contratos/DPA/SLA, responsabilidades entre controlador e operador, política de suporte e avaliação regulatória. Veja [`docs/BUSINESS_MONETIZATION.md`](docs/BUSINESS_MONETIZATION.md).
+Esta RC é proprietária, todos os direitos são reservados e sua avaliação é limitada a dados totalmente sintéticos. A disponibilidade pública do código não concede permissão para copiar, modificar, distribuir, hospedar ou comercializar o produto. Consulte [`LICENSE`](LICENSE).
+
+Antes de qualquer piloto, monetização ou distribuição, ainda será necessário revisar propriedade intelectual e marcas, definir os termos comerciais por escrito, contratos/DPA/SLA, responsabilidades entre controlador e operador, política de suporte e avaliação regulatória. Veja [`docs/BUSINESS_MONETIZATION.md`](docs/BUSINESS_MONETIZATION.md).

@@ -17,6 +17,7 @@ mkdir -p "${stage_app}"
 required_files=(
   ".env.example"
   ".gitignore"
+  "LICENSE"
   "README.md"
   "app.js"
   "attachment-contract.mjs"

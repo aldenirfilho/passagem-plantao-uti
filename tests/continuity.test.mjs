@@ -23,7 +23,7 @@ import {
 
 const physician = (overrides = {}) => ({
   doctorName: "Médica Teste",
-  crm: "CRM-CE 00001",
+  crm: "CRM-DEMO-A",
   specialty: "Medicina Intensiva",
   rqe: "RQE 00000",
   role: "PLANTONISTA",
@@ -45,7 +45,7 @@ test("assunção exige nome e CRM e registra entrada auditada", () => {
 test("próximo profissional transfere responsabilidade e o encerramento preserva histórico", () => {
   const state = newState();
   assumeShift(state, physician(), "2026-08-03T07:00:00.000Z");
-  assumeShift(state, physician({ doctorName: "Médico Seguinte", crm: "CRM-CE 00002", role: "DIARISTA" }), "2026-08-03T19:00:00.000Z");
+  assumeShift(state, physician({ doctorName: "Médico Seguinte", crm: "CRM-DEMO-B", role: "DIARISTA" }), "2026-08-03T19:00:00.000Z");
 
   assert.equal(state.continuity.sessions.length, 1);
   assert.equal(state.continuity.sessions[0].endReason, "TRANSFERIDO");
@@ -100,7 +100,7 @@ test("bateria representa completude e nunca chega a 100% com oportunidade ativa"
   bed.clinicalText = "Material registrado";
   bed.handoff.forEach((line) => { line.text = "Linha preenchida"; });
   bed.activities = { evolutionDone: true, prescriptionReviewed: true, examsReviewed: true, updatedAt: null, updatedBy: "" };
-  bed.readback = { receiverName: "Receptor", receiverCrm: "CRM 2", linesReviewed: true, risksReviewed: true, tasksUnderstood: true, confirmedAt: "2026-08-03T19:00:00.000Z", contentHash: "a".repeat(64) };
+  bed.readback = { receiverName: "Receptor", receiverCrm: "CRM-DEMO-B", linesReviewed: true, risksReviewed: true, tasksUnderstood: true, confirmedAt: "2026-08-03T19:00:00.000Z", contentHash: "a".repeat(64) };
   assert.equal(bedCharge(bed), 100);
 
   for (const mutate of [
@@ -141,17 +141,17 @@ test("nome e prontuário/ID são obrigatórios para read-back e saídas clínica
 
 test("plantonista vigente centraliza autoria clínica; settings é apenas fallback", () => {
   const state = newState();
-  state.settings = { ...state.settings, doctorName: "Perfil editável", crm: "CRM 000", hospital: "Hospital Teste", unit: "UTI 2", date: "2026-08-03" };
+  state.settings = { ...state.settings, doctorName: "Perfil editável", crm: "CRM-DEMO-LOCAL", hospital: "Hospital Teste", unit: "UTI 2", date: "2026-08-03" };
   const bed = state.beds[0];
   bed.patientName = "Paciente Teste";
   bed.record = "PRONT-1";
   bed.handoff.forEach((line) => { line.text = "Linha preenchida"; });
-  assumeShift(state, physician({ doctorName: "Plantonista vigente", crm: "CRM 111" }), "2026-08-03T07:00:00.000Z");
+  assumeShift(state, physician({ doctorName: "Plantonista vigente", crm: "CRM-DEMO-VIGENTE" }), "2026-08-03T07:00:00.000Z");
 
   const actor = clinicalActor(state);
   assert.equal(actor.doctorName, "Plantonista vigente");
   const output = handoffText(bed, state.settings, actor);
-  assert.match(output, /RESPONSÁVEL: PLANTONISTA VIGENTE · CRM 111/i);
+  assert.match(output, /RESPONSÁVEL: PLANTONISTA VIGENTE · CRM-DEMO-VIGENTE/i);
   assert.doesNotMatch(output, /Perfil editável/);
   assert.equal(buildCapsule(state, "shift", "L1").data.settings.doctorName, "Plantonista vigente");
   assert.equal(buildPrintModel(state, "bed", "L1").professional.doctorName, "Plantonista vigente");
@@ -225,7 +225,7 @@ test("Cápsula preserva continuidade, atividades e autoria de coordenação sem 
     prescriptionReviewed: true,
     examsReviewed: false,
     updatedAt: "2026-08-03T08:00:00.000Z",
-    updatedBy: "Médica Teste · CRM-CE 00001",
+    updatedBy: "Médica Teste · CRM-DEMO-A",
   };
   bed.checklist.push({
     id: "coord-task-1",
@@ -237,7 +237,7 @@ test("Cápsula preserva continuidade, atividades e autoria de coordenação sem 
     source: "coordination",
     createdAt: "2026-08-03T08:05:00.000Z",
     authorName: "Médica Teste",
-    authorCrm: "CRM-CE 00001",
+    authorCrm: "CRM-DEMO-A",
   });
   state.notifications.push({ title: "Não exportar" });
 
@@ -246,7 +246,7 @@ test("Cápsula preserva continuidade, atividades e autoria de coordenação sem 
   assert.equal(validated.data.continuity.activeShift.role, "COORDENADOR");
   assert.equal(validated.data.beds[0].activities.prescriptionReviewed, true);
   assert.equal(validated.data.beds[0].checklist[0].source, "coordination");
-  assert.equal(validated.data.beds[0].checklist[0].authorCrm, "CRM-CE 00001");
+  assert.equal(validated.data.beds[0].checklist[0].authorCrm, "CRM-DEMO-A");
   assert.doesNotMatch(serialized, /notifications|OPENAI_API_KEY|blob|attachments/i);
 });
 

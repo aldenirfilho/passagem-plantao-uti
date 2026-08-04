@@ -7,13 +7,13 @@
 | Campo | Valor |
 |---|---|
 | Repositório | `passagem-plantao-uti-v5` |
-| Responsável técnico | ________________________________ |
-| Responsável clínico | ________________________________ |
-| Responsável de segurança/privacidade | ________________________________ |
-| Versão do mapa | ________________________________ |
-| Commit de referência | ________________________________ |
-| Última revisão | ____/____/________ |
-| Próxima revisão | ____/____/________ |
+| Responsável técnico | A designar formalmente antes de qualquer piloto |
+| Responsável clínico | A designar formalmente antes de qualquer piloto |
+| Responsável de segurança/privacidade | A designar formalmente antes de qualquer piloto |
+| Versão do mapa | `5.0.0-rc.1` |
+| Commit de referência | PR draft `#1`, branch `agent/uti-handoff-v2`; head registrado no checkpoint NEXUS |
+| Última revisão | 04/08/2026 |
+| Próxima revisão | Antes de qualquer piloto ou promoção da PR |
 
 ## 2. Regra de armazenamento
 
@@ -46,6 +46,8 @@ Confirme os nomes no commit indicado; diretórios podem evoluir.
 
 ```text
 passagem-plantao-uti-v5/
+├── .github/workflows/ci.yml  # QA automatizada da PR e da branch principal
+├── LICENSE                   # direitos reservados e limite de avaliação sintética
 ├── README.md                  # instalação, execução e visão da baseline local
 ├── package.json               # scripts e dependências do projeto
 ├── [arquivos da aplicação]    # frontend/backend local conforme o build

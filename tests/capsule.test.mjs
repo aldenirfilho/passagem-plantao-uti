@@ -27,7 +27,7 @@ function populatedState() {
   state.settings = {
     ...state.settings,
     doctorName: "Médica Teste",
-    crm: "CRM-CE 00001",
+    crm: "CRM-DEMO-A",
     hospital: "Hospital Teste",
     unit: "UTI 2",
     date: "2026-08-03",
@@ -47,7 +47,7 @@ function populatedState() {
   bed.updatedAt = "2026-08-03T17:10:00.000Z";
   bed.readback = {
     receiverName: "Médico Receptor",
-    receiverCrm: "CRM-CE 00002",
+    receiverCrm: "CRM-DEMO-B",
     linesReviewed: true,
     risksReviewed: true,
     tasksUnderstood: true,
@@ -78,13 +78,13 @@ test("Cápsula de leito isola continuidade global e qualquer outro leito", () =>
   state.beds[1].clinicalText = "Detalhe exclusivo do L2";
   assumeShift(state, {
     doctorName: "Plantão anterior secreto",
-    crm: "CRM-CE 10000",
+    crm: "CRM-DEMO-A",
     role: "PLANTONISTA",
     careMode: "AD_HOC",
   }, "2026-08-03T07:00:00.000Z");
   assumeShift(state, {
     doctorName: "Plantonista vigente",
-    crm: "CRM-CE 10001",
+    crm: "CRM-DEMO-B",
     role: "PLANTONISTA",
     careMode: "UTI_OFICIAL",
   }, "2026-08-03T19:00:00.000Z");
@@ -98,7 +98,7 @@ test("Cápsula de leito isola continuidade global e qualquer outro leito", () =>
   contaminated.data.continuity.sessions.push({
     id: "external-session",
     doctorName: "Externo",
-    crm: "CRM 9",
+    crm: "CRM-DEMO-I",
     specialty: "",
     rqe: "",
     role: "PLANTONISTA",
@@ -217,27 +217,27 @@ test("importação nunca confia em vigência/auditoria externa e registra apenas
     source: "coordination",
     createdAt: "2026-08-03T07:30:00.000Z",
     authorName: "Coordenação externa",
-    authorCrm: "CRM-EX 998",
+    authorCrm: "CRM-DEMO-EXTERNO-B",
   });
   assumeShift(external, {
     doctorName: "Pessoa externa",
-    crm: "CRM-EX 999",
+    crm: "CRM-DEMO-EXTERNO-C",
     role: "COORDENADOR",
     careMode: "UTI_OFICIAL",
   }, "2026-08-03T07:00:00.000Z");
   const capsule = parseCapsuleText(JSON.stringify(buildCapsule(external, "shift", "L1")));
 
   const current = newState();
-  current.settings = { ...current.settings, doctorName: "Pessoa local", crm: "CRM-CE 123", hospital: "Hospital Teste", unit: "UTI 2", date: "2026-08-03" };
+  current.settings = { ...current.settings, doctorName: "Pessoa local", crm: "CRM-DEMO-LOCAL", hospital: "Hospital Teste", unit: "UTI 2", date: "2026-08-03" };
   assumeShift(current, {
     doctorName: "Histórico local",
-    crm: "CRM-CE 122",
+    crm: "CRM-DEMO-ANTERIOR",
     role: "PLANTONISTA",
     careMode: "AD_HOC",
   }, "2026-08-02T19:00:00.000Z");
   assumeShift(current, {
     doctorName: "Pessoa local",
-    crm: "CRM-CE 123",
+    crm: "CRM-DEMO-LOCAL",
     role: "PLANTONISTA",
     careMode: "AD_HOC",
   }, "2026-08-03T07:00:00.000Z");
@@ -249,7 +249,7 @@ test("importação nunca confia em vigência/auditoria externa e registra apenas
   assert.equal(merged.continuity.activeShift, null);
   assert.deepEqual(merged.continuity.sessions, localSessions);
   assert.deepEqual(merged.continuity.auditLog, localAudit);
-  assert.doesNotMatch(JSON.stringify(merged.continuity), /Pessoa externa|CRM-EX 999/);
+  assert.doesNotMatch(JSON.stringify(merged.continuity), /Pessoa externa|CRM-DEMO-EXTERNO-C/);
   assert.equal(merged.beds[0].timeline[0].author, "Importado · não verificado · Médica Teste");
   assert.equal(merged.beds[0].checklist[1].authorName, "Importado · não verificado · Coordenação externa");
   appendLocalCapsuleImportAudit(merged, capsule, "merge", localActor, "2026-08-03T08:00:00.000Z");
@@ -259,7 +259,7 @@ test("importação nunca confia em vigência/auditoria externa e registra apenas
   const replaced = applyCapsuleToWorkspace(current, capsule, "replace");
   assert.deepEqual(replaced.continuity, { activeShift: null, sessions: [], auditLog: [] });
   assert.equal(replaced.settings.doctorName, "Pessoa local");
-  assert.doesNotMatch(JSON.stringify(replaced.continuity), /Pessoa externa|CRM-EX 999/);
+  assert.doesNotMatch(JSON.stringify(replaced.continuity), /Pessoa externa|CRM-DEMO-EXTERNO-C/);
   assert.equal(replaced.beds[0].timeline[0].author, "Importado · não verificado · Médica Teste");
   assert.equal(replaced.beds[0].checklist[1].authorName, "Importado · não verificado · Coordenação externa");
 });
@@ -277,7 +277,7 @@ test("autorias importadas aparecem como não verificadas sem duplicar o marcador
     source: "coordination",
     createdAt: "2026-08-03T07:30:00.000Z",
     authorName: "Importado · não verificado · Coordenação anterior",
-    authorCrm: "CRM-EX 997",
+    authorCrm: "CRM-DEMO-EXTERNO-A",
   });
   const capsule = parseCapsuleText(JSON.stringify(buildCapsule(source, "bed", "L1")));
   const current = newState();

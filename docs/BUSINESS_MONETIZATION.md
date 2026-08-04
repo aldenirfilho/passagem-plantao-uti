@@ -2,6 +2,12 @@
 
 **Status:** hipóteses comerciais; não representa preço ou contrato aprovado
 
+## Estado de licenciamento desta RC
+
+A RC `5.0.0-rc.1` é proprietária, com todos os direitos reservados, e pode ser avaliada somente com dados totalmente sintéticos conforme [`../LICENSE`](../LICENSE). A visibilidade pública do repositório não concede licença de distribuição, hospedagem, modificação ou comercialização.
+
+Uma licença comercial, de piloto institucional ou eventualmente aberta dependerá de decisão jurídica e comercial expressa. Nenhuma hipótese de plano ou preço abaixo altera esse estado.
+
 ## 1. Tese
 
 O valor do Passagem UTI está na continuidade estruturada, redução de retrabalho e visibilidade de pendências. A monetização deve remunerar software, implantação e suporte, nunca a venda de dados de pacientes ou a exploração punitiva do desempenho médico.
@@ -162,4 +168,3 @@ Toda métrica deve ter definição, finalidade, população, limitação, respon
 ## 12. Critério comercial para lançamento
 
 Não vender o produto online como pronto antes de segurança, LGPD, auditoria, suporte e recuperação passarem pelo [checklist de lançamento](./LAUNCH_CHECKLIST.md). Piloto deve declarar claramente caráter limitado e capacidades não disponíveis.
-

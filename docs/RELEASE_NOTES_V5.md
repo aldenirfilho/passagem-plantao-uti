@@ -7,12 +7,12 @@
 | Campo | Valor |
 |---|---|
 | Nome da entrega | Passagem UTI v5 — RC local-first e fundação institucional |
-| Versão/tag | `5.0.0-rc.1` · tag ainda não criada |
-| Commit | branch de revisão `agent/uti-handoff-v2` · hash registrado na publicação |
-| Data | 03/08/2026 |
-| Responsável | ________________________________ |
+| Versão/tag | `5.0.0-rc.1` · sem tag pública |
+| Commit | branch `agent/uti-handoff-v2` · PR draft [#1](https://github.com/aldenirfilho/passagem-plantao-uti/pull/1); head e checksum registrados no checkpoint NEXUS |
+| Data | 04/08/2026 |
+| Responsável | proprietário do repositório (`aldenirfilho`) |
 | Ambiente | ☒ Local ☒ Protótipo sintético ☐ Homologação ☐ Produção |
-| Estado | ☐ Em preparação ☒ Candidata ☐ Publicada ☐ Retirada |
+| Estado | ☐ Em preparação ☒ Candidata técnica em PR draft ☐ Publicada em produção ☐ Retirada |
 | Gate de dados reais | **NÃO AUTORIZADO** até aprovação formal |
 
 ## 2. Resumo executivo
@@ -131,8 +131,8 @@ Nenhuma migração automática de dado clínico local para nuvem está autorizad
 | Acessibilidade claro/escuro/dialogs | axe em 6 estados; teclado/leitor humano ainda pendente | ☒ Passou ☐ Falhou ☐ N/A |
 
 **Executor:** Codex · QA automatizada exclusivamente sintética  
-**Data:** 03/08/2026  
-**Build testado:** `5.0.0-rc.1` na branch de revisão; hash no PR
+**Data:** 04/08/2026  
+**Build testado:** `5.0.0-rc.1` na branch de revisão; hash SHA-256 no arquivo sidecar e no checkpoint NEXUS. O hash não é embutido no próprio ZIP para evitar uma referência circular.
 
 ## 9. Piloto e critérios de promoção
 

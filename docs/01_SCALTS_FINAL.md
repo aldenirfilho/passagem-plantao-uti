@@ -1,6 +1,6 @@
 # SCALTS final — Passagem UTI v5 RC1
 
-**Data:** 03/08/2026  
+**Data:** 04/08/2026  
 **Versão:** `5.0.0-rc.1`  
 **Checkpoint:** candidato técnico local-first, exclusivamente sintético
 
@@ -56,7 +56,7 @@ Bloqueios antes de qualquer uso com paciente real:
 - realizar teste independente de segurança, privacidade, fatores humanos e validação clínica;
 - definir controlador/operador, DPO, incidentes, suporte, SLA e rollback;
 - implementar e provar identidade, autorização, isolamento e auditoria da versão online;
-- escolher licença e revisar marca/propriedade intelectual antes de monetização.
+- submeter a licença proprietária provisória, marca e propriedade intelectual à revisão jurídica antes de piloto, distribuição ou monetização; termos comerciais continuam pendentes.
 
 Apple Notes/iCloud não possuem conector gravável disponível nesta sessão; foi produzido um guia de organização manual sem dados clínicos nem segredos.
 
