@@ -6,7 +6,7 @@ PWA local-first para continuidade assistencial e passagem de plantão em UTI adu
 
 - Nome: **NEXUS CARE**
 - Descrição: **Continuidade Assistencial em UTI**
-- Endereço neutro planejado: `https://nexus-care-uti.vercel.app`
+- Endereço neutro: `https://nexus-care-uti.vercel.app`
 - Endereço de contingência: `https://aldenirfilho.github.io/passagem-plantao-uti/`
 
 ## Publicação
@@ -16,6 +16,7 @@ PWA local-first para continuidade assistencial e passagem de plantão em UTI adu
 - Saída publicada: `dist/`
 - GitHub Pages: `.github/workflows/pages.yml`
 - Vercel: `vercel.json`
+- Último acionamento de produção: `2026-08-04 20:26 America/Fortaleza`
 
 ## PDFs
 
