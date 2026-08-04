@@ -1,0 +1,13 @@
+{
+  "name": "nexus-care-uti",
+  "version": "5.3.0",
+  "private": true,
+  "type": "module",
+  "description": "NEXUS CARE · continuidade assistencial em UTI com PWA e PDFs estruturados.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
