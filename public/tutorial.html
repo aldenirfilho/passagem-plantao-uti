@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#06131f">
+    <meta
+      name="description"
+      content="Tutorial ilustrado v5 do Passagem UTI: instalação local, continuidade do plantão, dez leitos, exportações, WhatsApp e Cápsula UTI.">
+    <title>Tutorial ilustrado v5 · Passagem UTI</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png">
+    <link rel="stylesheet" href="./tutorial.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+    <aside class="release-alert" aria-label="Status desta versão">
+      <strong>VERSÃO v5 RC · USO LOCAL</strong>
+      <span>Candidato técnico para testes com dados sintéticos. Não é prontuário, prescrição, monitor clínico ou versão liberada para produção.</span>
+    </aside>
+
+    <header class="tutorial-header">
+      <a class="tutorial-brand" href="./" aria-label="Abrir o aplicativo Passagem UTI">
+        <span class="brand-mark" aria-hidden="true"><img src="./assets/logo-passagem-uti-aero.png" alt=""></span>
+        <span><strong>PASSAGEM UTI</strong><small>MANUAL VISUAL · v5 RC</small></span>
+      </a>
+      <nav class="header-links" aria-label="Navegação do tutorial">
+        <a href="#mapa">60 segundos</a>
+        <a href="#instalar">Instalar</a>
+        <a href="#operar">Operar</a>
+        <a href="#transferir">Transferir</a>
+        <a class="is-primary" href="./">Abrir app</a>
+      </nav>
+    </header>
+
+    <main id="conteudo">
+      <section class="hero shell" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">NEXUS 360X · CONTINUIDADE ASSISTENCIAL</p>
+          <h1 id="hero-title">Uma foto clara do plantão. <span>Dez leitos prontos para continuar.</span></h1>
+          <p class="hero-lead">
+            Este manual leva você da instalação à entrega segura: perfil vigente, dez baterias, dez linhas, pendências, read-back, exportações e Cápsula UTI.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#mapa">Ver o mapa rápido</a>
+            <a class="button button-secondary" href="#instalar">Instalar no Mac</a>
+          </div>
+          <ul class="hero-facts" aria-label="Três princípios do aplicativo">
+            <li><span aria-hidden="true">KEY</span> chave fora do navegador</li>
+            <li><span aria-hidden="true">10</span> carga indica completude, não desempenho</li>
+            <li><span aria-hidden="true">MD</span> toda saída exige revisão médica</li>
+          </ul>
+        </div>
+
+        <figure class="concept-figure hero-concept">
+          <img
+            src="./assets/tutorial/cockpit-plantonista-v5.webp"
+            alt="Conceito visual do cockpit do plantonista com dez cartões de leito, perfil vigente e painel de oportunidades.">
+          <figcaption><strong>CONCEITO</strong> · visão-alvo ilustrativa com dados fictícios; não é captura da versão em execução.</figcaption>
+        </figure>
+      </section>
+
+      <section id="mapa" class="section shell" aria-labelledby="map-title">
+        <div class="section-number">00</div>
+        <div class="section-heading">
+          <p class="eyebrow">MAPA DE 60 SEGUNDOS</p>
+          <h2 id="map-title">O plantão inteiro em seis movimentos.</h2>
+          <p>Se você só puder ler uma parte agora, siga esta sequência. Depois volte ao módulo que precisar.</p>
+        </div>
+
+        <ol class="route-grid">
+          <li><span>01</span><strong>Identifique</strong><p>Preencha profissional, hospital, UTI, papel, modo e turno.</p><a href="#assumir">Abrir módulo</a></li>
+          <li><span>02</span><strong>Assuma</strong><p>Registre quem está vigente e o horário informativo de entrada.</p><a href="#assumir">Abrir módulo</a></li>
+          <li><span>03</span><strong>Carregue</strong><p>Selecione L1–L10, cole texto e escolha os arquivos necessários.</p><a href="#leitos">Abrir módulo</a></li>
+          <li><span>04</span><strong>Resolva</strong><p>Revise dez linhas, checklist, timeline, atividades e oportunidades.</p><a href="#operar">Abrir módulo</a></li>
+          <li><span>05</span><strong>Confirme</strong><p>Faça o read-back e corrija qualquer dúvida antes da entrega.</p><a href="#readback">Abrir módulo</a></li>
+          <li><span>06</span><strong>Transfira</strong><p>Escolha TXT, Markdown, PDF, WhatsApp ou Cápsula UTI.</p><a href="#transferir">Abrir módulo</a></li>
+        </ol>
+
+        <div class="memory-strip" role="note">
+          <span aria-hidden="true">MAP</span>
+          <p><strong>Regra de ouro:</strong> o app organiza o que foi registrado. Ele não observa o paciente, não decide conduta e não substitui prontuário, alarmes ou avaliação à beira-leito.</p>
+        </div>
+      </section>
+
+      <section id="instalar" class="section shell" aria-labelledby="install-title">
+        <div class="section-number">01</div>
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow">INSTALAÇÃO · MAC + IPHONE · SEM API OBRIGATÓRIA</p>
+            <h2 id="install-title">Abra no Mac. Continue no iPhone.</h2>
+            <p>Você precisa apenas de Node.js 20 ou mais recente no Mac. O Turbo Local funciona sem criar ou configurar nova chave API.</p>
+          </div>
+          <span class="status-pill is-ready">TURBO LOCAL PRONTO</span>
+        </div>
+
+        <div class="install-layout">
+          <article class="folder-card visual-card" aria-labelledby="iphone-title">
+            <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i><span>Mac + Safari do iPhone</span></div>
+            <div class="folder-content">
+              <p class="eyebrow" id="iphone-title">DOIS ENDEREÇOS SEPARADOS</p>
+              <div class="folder-tree" role="img" aria-label="Arquitetura de acesso seguro">
+                <span><b>⌂</b> Mac seguro</span>
+                <span class="level-1"><b>●</b> 127.0.0.1:4173 <em>GPT opcional</em></span>
+                <span><b>▣</b> iPhone na mesma rede Wi-Fi</span>
+                <span class="level-1"><b>●</b> IP-DO-MAC:4174 <em>Turbo Local sem chave</em></span>
+              </div>
+              <p class="microcopy">O servidor do iPhone não lê arquivo <code>.env</code>, não carrega chave e não chama API externa.</p>
+            </div>
+          </article>
+
+          <div class="action-stack">
+            <article class="action-step"><span>1</span><div><strong>Confirme o Node.js</strong><p>No Terminal:</p><pre><code>node --version</code></pre><small>Pronto quando aparecer v20 ou superior.</small></div></article>
+            <article class="action-step"><span>2</span><div><strong>Abra o inicializador</strong><p>Clique com o botão direito em <code>start-mac.command</code> e escolha Abrir.</p></div></article>
+            <article class="action-step"><span>3</span><div><strong>Use no Mac</strong><p>O navegador abrirá em <code>http://127.0.0.1:4173</code>.</p></div></article>
+            <article class="action-step"><span>4</span><div><strong>Use no iPhone</strong><p>Abra no Safari o endereço de rede mostrado no Terminal, terminando em <code>:4174</code>.</p></div></article>
+          </div>
+        </div>
+
+        <div class="two-column-callouts">
+          <article class="callout is-command">
+            <span aria-hidden="true">⌘</span>
+            <div><strong>Adicionar à Tela de Início</strong><p>No Safari do iPhone: Compartilhar → Adicionar à Tela de Início.</p><small>Na rede local, mantenha o Mac e o Terminal ligados.</small></div>
+          </article>
+          <article class="callout is-danger">
+            <span aria-hidden="true">!</span>
+            <div><strong>Offline completo exige HTTPS</strong><p>O acesso pela rede Wi-Fi funciona sem API, mas o cache PWA completo do iPhone depende de hospedagem HTTPS. Use a pasta <code>deploy-pwa-https</code> em ambiente privado ou institucional.</p></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="realidade" class="section shell" aria-labelledby="reality-title">
+        <div class="section-number">02</div>
+        <div class="section-heading">
+          <p class="eyebrow">DUAS REALIDADES · SEM PROMESSA ENGANOSA</p>
+          <h2 id="reality-title">O que existe agora e o que ainda depende de infraestrutura.</h2>
+          <p>A interface local já organiza o turno. A cápsula viva multiusuário permanece uma arquitetura futura, sujeita a segurança e governança institucional.</p>
+        </div>
+
+        <div class="reality-grid">
+          <article class="reality-card is-now">
+            <span class="status-pill is-ready">LOCAL AGORA</span>
+            <h3>Um navegador, um espaço de trabalho</h3>
+            <ul class="check-list">
+              <li>Dados e anexos no navegador/perfil local.</li>
+              <li>Turbo Local sem API no Mac, iPhone e iPad.</li>
+              <li>Servidor GPT opcional restrito ao <code>127.0.0.1</code> do Mac.</li>
+              <li>Plantonista vigente e histórico neste dispositivo.</li>
+              <li>Cápsula UTI exportada/importada manualmente.</li>
+              <li>Coordenação somente sobre o estado local aberto.</li>
+            </ul>
+          </article>
+          <article class="reality-card is-future">
+            <span class="status-pill is-future">ONLINE FUTURO</span>
+            <h3>Serviço institucional multiusuário</h3>
+            <ul class="check-list">
+              <li>Login forte, autenticação multifator e papéis verificados.</li>
+              <li>Organização, UTI, membros, escala e isolamento por instituição.</li>
+              <li>Cápsula viva versionada e conflitos explícitos.</li>
+              <li>Auditoria institucional, criptografia, backup e incidentes.</li>
+              <li>Painel remoto autorizado para coordenação e diaristas.</li>
+            </ul>
+            <p class="boundary-note"><strong>Não disponível nesta RC:</strong> sincronização em tempo real, convites remotos, monitoramento online ou intervenção entre dispositivos.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="assumir" class="section shell" aria-labelledby="shift-title">
+        <div class="section-number">03</div>
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow">PLANTONISTA VIGENTE</p>
+            <h2 id="shift-title">Registre responsabilidade, não velocidade.</h2>
+            <p>O relógio informa contexto do turno. Não existe ranking, cronômetro de produtividade ou premiação por rapidez.</p>
+          </div>
+          <span class="status-pill is-neutral">TEMPO INFORMATIVO</span>
+        </div>
+
+        <div class="profile-board visual-card">
+          <div class="profile-preview">
+            <span class="avatar-demo" aria-hidden="true">MD</span>
+            <div><small>PLANTONISTA VIGENTE · EXEMPLO SINTÉTICO</small><strong>PROFISSIONAL DEMO</strong><p>Medicina Intensiva · CRM-UF 00000 · RQE 00000</p></div>
+          </div>
+          <dl class="profile-facts">
+            <div><dt>Papel</dt><dd>Plantonista</dd></div>
+            <div><dt>Modo</dt><dd>Ad hoc</dd></div>
+            <div><dt>Entrada</dt><dd>07:00</dd></div>
+            <div><dt>Saída</dt><dd>—</dd></div>
+            <div><dt>Tempo informativo</dt><dd>03h 20min</dd></div>
+          </dl>
+        </div>
+
+        <div class="workflow-grid four">
+          <article><span>01</span><h3>Preencha o cabeçalho</h3><p>Nome completo, especialidade, CRM/UF, RQE, papel, modo, cidade, hospital, UTI, turno e data.</p><small>Nome e CRM são obrigatórios para assumir.</small></article>
+          <article><span>02</span><h3>Escolha o papel</h3><p><strong>Plantonista</strong>, <strong>Coordenador</strong> ou <strong>Diarista</strong>. A escolha registra o contexto local; não concede identidade institucional.</p></article>
+          <article><span>03</span><h3>Escolha o modo</h3><p><strong>UTI declarada localmente</strong> identifica a unidade informada pelo usuário, sem verificação institucional nesta RC. <strong>Ad hoc</strong> organiza um grupo local/extraoficial.</p></article>
+          <article><span>04</span><h3>Assuma ou encerre</h3><p><strong>Assumir / transferir</strong> fecha a sessão anterior local e registra a nova. <strong>Encerrar</strong> preserva leitos e pendências.</p></article>
+        </div>
+
+        <div class="done-criteria"><strong>Critério de conclusão</strong><span>O painel superior mostra nome, credenciais, papel, modo e hora de entrada; o selo continua dizendo “Local neste dispositivo”.</span></div>
+      </section>
+
+      <section id="leitos" class="section shell" aria-labelledby="beds-title">
+        <div class="section-number">04</div>
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow">10 BATERIAS · L1 A L10</p>
+            <h2 id="beds-title">Cada leito carrega informação executável.</h2>
+            <p>A carga resume completude da passagem. Estado clínico, alerta e prioridade são sinais separados.</p>
+          </div>
+          <span class="status-pill is-warning">NÃO REPRESENTA GRAVIDADE</span>
+        </div>
+
+        <div class="battery-board visual-card" role="img" aria-label="Exemplo sintético de dez baterias de leito">
+          <div class="battery-demo charge-86 is-active"><i></i><strong>L1</strong><small>DEMO A</small><b>86%</b></div>
+          <div class="battery-demo charge-64"><i></i><strong>L2</strong><small>DEMO B</small><b>64%</b></div>
+          <div class="battery-demo charge-79 is-attention"><i></i><strong>L3</strong><small>DEMO C</small><b>79%</b></div>
+          <div class="battery-demo charge-45"><i></i><strong>L4</strong><small>DEMO D</small><b>45%</b></div>
+          <div class="battery-demo charge-31"><i></i><strong>L5</strong><small>DEMO E</small><b>31%</b></div>
+          <div class="battery-demo charge-72"><i></i><strong>L6</strong><small>DEMO F</small><b>72%</b></div>
+          <div class="battery-demo charge-58"><i></i><strong>L7</strong><small>DEMO G</small><b>58%</b></div>
+          <div class="battery-demo charge-93"><i></i><strong>L8</strong><small>DEMO H</small><b>93%</b></div>
+          <div class="battery-demo charge-24"><i></i><strong>L9</strong><small>DEMO I</small><b>24%</b></div>
+          <div class="battery-demo charge-0"><i></i><strong>L10</strong><small>VAZIO</small><b>0%</b></div>
+        </div>
+
+        <div class="bed-flow">
+          <article><span>1</span><strong>Selecione L1–L10</strong><p>Confira o leito antes de colar qualquer conteúdo.</p></article>
+          <i aria-hidden="true">→</i>
+          <article><span>2</span><strong>Identifique o contexto</strong><p>Use apenas dados autorizados pela instituição.</p></article>
+          <i aria-hidden="true">→</i>
+          <article><span>3</span><strong>Carregue e revise</strong><p>Texto + arquivos selecionados → dez linhas editáveis.</p></article>
+        </div>
+
+        <div class="topic-panel">
+          <div class="topic-intro">
+            <p class="eyebrow">ORDEM CLÍNICA FIXA</p>
+            <h3>As dez linhas do próximo plantonista</h3>
+            <p>O GPT organiza somente fatos fornecidos. Informação ausente deve permanecer como <strong>NÃO INFORMADO</strong> e ser revisada pelo médico.</p>
+          </div>
+          <ol class="topic-grid">
+            <li><b>01</b><span>Identificação e contexto</span></li>
+            <li><b>02</b><span>Diagnósticos e problemas ativos</span></li>
+            <li><b>03</b><span>Últimas 24h / intercorrências</span></li>
+            <li><b>04</b><span>Neurológico, sedação e dor</span></li>
+            <li><b>05</b><span>Respiratório e via aérea</span></li>
+            <li><b>06</b><span>Hemodinâmica, renal e metabólico</span></li>
+            <li><b>07</b><span>Infecção, antimicrobianos e culturas</span></li>
+            <li><b>08</b><span>Nutrição, dispositivos e profilaxias</span></li>
+            <li><b>09</b><span>Plano e metas do próximo plantão</span></li>
+            <li><b>10</b><span>Pendências, gatilhos e riscos</span></li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="arquivos" class="section shell" aria-labelledby="files-title">
+        <div class="section-number">05</div>
+        <div class="section-heading">
+          <p class="eyebrow">TEXTO · PDF · FOTO · DOCUMENTOS</p>
+          <h2 id="files-title">Anexe localmente. Envie à IA somente o necessário.</h2>
+          <p>O cofre pertence ao leito e ao navegador atual. Selecionar um arquivo para análise é uma ação deliberada.</p>
+        </div>
+
+        <div class="files-board">
+          <article class="drop-zone visual-card">
+            <span aria-hidden="true">＋</span><strong>Arraste ou escolha arquivos</strong><p>PDF · imagem · texto · DOCX</p><small>Exemplo visual; use apenas material autorizado.</small>
+          </article>
+          <ul class="file-stack" aria-label="Exemplos sintéticos de arquivos">
+            <li><span class="file-icon is-image">IMG</span><div><strong>imagem_demo.png</strong><small>Selecionado para análise GPT</small></div><b>✓</b></li>
+            <li><span class="file-icon is-pdf">PDF</span><div><strong>evolucao_demo.pdf</strong><small>Somente no cofre local</small></div><b>○</b></li>
+            <li><span class="file-icon is-text">TXT</span><div><strong>nota_demo.txt</strong><small>Selecionado para análise GPT</small></div><b>✓</b></li>
+          </ul>
+        </div>
+
+        <dl class="limits-grid">
+          <div><dt>8</dt><dd>anexos selecionados por análise</dd></div>
+          <div><dt>15 MB</dt><dd>máximo por arquivo</dd></div>
+          <div><dt>22 MB</dt><dd>total selecionado</dd></div>
+          <div><dt>120 mil</dt><dd>caracteres de texto clínico</dd></div>
+        </dl>
+
+        <div class="review-lane" role="img" aria-label="Sequência para renderizar">
+          <span><b>1</b> Conferir leito</span><i>→</i><span><b>2</b> Selecionar arquivos</span><i>→</i><span><b>3</b> Renderizar</span><i>→</i><span><b>4</b> Revisar 10 linhas</span><i>→</i><span><b>5</b> Editar antes de usar</span>
+        </div>
+
+        <div class="callout is-warning"><span aria-hidden="true">!</span><div><strong>Falha da IA não bloqueia o plantão</strong><p>Continue com edição manual. A saída da IA não prescreve, não altera automaticamente o estado clínico e não torna uma pendência obrigatória sem aceite humano.</p></div></div>
+      </section>
+
+      <section id="operar" class="section shell" aria-labelledby="operate-title">
+        <div class="section-number">06</div>
+        <div class="section-heading">
+          <p class="eyebrow">EXECUÇÃO E MEMÓRIA DO TURNO</p>
+          <h2 id="operate-title">Checklist dinâmico + linha do tempo + atividades.</h2>
+          <p>Três superfícies respondem: o que falta, o que mudou e o que já foi revisado.</p>
+        </div>
+
+        <div class="operations-grid">
+          <article class="operation-card">
+            <div class="operation-icon" aria-hidden="true">✓</div>
+            <h3>Checklist editável</h3>
+            <ul>
+              <li>Texto objetivo, prioridade e prazo/gatilho.</li>
+              <li>Conclusão manual e visível.</li>
+              <li>Sugestão da IA permanece separada até aceite.</li>
+              <li>Tarefa da coordenação mostra autoria local.</li>
+            </ul>
+          </article>
+          <article class="operation-card">
+            <div class="operation-icon" aria-hidden="true">◷</div>
+            <h3>Linha do tempo</h3>
+            <ul>
+              <li>Registre evento, conduta documentada, exame ou contato.</li>
+              <li>Inclua momento e texto breve.</li>
+              <li>O conteúdo entra no contexto da próxima renderização.</li>
+              <li>Não substitui registro oficial no prontuário.</li>
+            </ul>
+          </article>
+          <article class="operation-card">
+            <div class="operation-icon" aria-hidden="true">＋</div>
+            <h3>Atividades do leito</h3>
+            <ul>
+              <li>Evolução concluída.</li>
+              <li>Prescrição revisada.</li>
+              <li>Exames revisados.</li>
+              <li>Pendências e lacunas continuam visíveis.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="equity-note">
+          <span aria-hidden="true">EQ</span>
+          <div><strong>Resolutividade com equidade</strong><p>Essas marcas ajudam a enxergar oportunidades distribuídas entre os dez leitos. Elas não medem mérito, produtividade, tempo ideal ou qualidade individual.</p></div>
+        </div>
+      </section>
+
+      <section id="readback" class="section shell" aria-labelledby="readback-title">
+        <div class="section-number">07</div>
+        <div class="section-heading">
+          <p class="eyebrow">READ-BACK · PASSAGEM REVERSA</p>
+          <h2 id="readback-title">Quem recebe confirma o que compreendeu.</h2>
+          <p>O aceite exige nome + prontuário/ID, além da checagem estruturada do conteúdo local; idade ou data de admissão não substituem o identificador institucional. Não é assinatura digital ou homologação institucional.</p>
+        </div>
+
+        <div class="readback-board visual-card">
+          <div class="handoff-person"><span>EMISSOR</span><b>E</b><strong>PROFISSIONAL DEMO</strong><small>10 linhas revisadas</small></div>
+          <div class="handoff-bridge" aria-hidden="true"><i></i><span>RISCOS · LACUNAS · PENDÊNCIAS</span><i></i></div>
+          <div class="readback-checks">
+            <strong>RECEPTOR DEMO · CRM-UF 00000</strong>
+            <span>✓ Revisei as 10 linhas</span>
+            <span>✓ Conferi alertas e lacunas</span>
+            <span>✓ Compreendi pendências e gatilhos</span>
+            <b>Confirmar recebimento</b>
+          </div>
+        </div>
+
+        <div class="callout is-danger"><span aria-hidden="true">↻</span><div><strong>Mudou conteúdo clínico? O aceite perde validade.</strong><p>Revise novamente antes da próxima entrega. Ao importar uma Cápsula UTI, o read-back também é invalidado por segurança.</p></div></div>
+      </section>
+
+      <section id="oportunidades" class="section shell" aria-labelledby="opportunity-title">
+        <div class="section-number">08</div>
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow">OPORTUNIDADES · EQUIDADE · SEM RANKING</p>
+            <h2 id="opportunity-title">Veja onde a atenção ainda pode produzir valor.</h2>
+            <p>O painel usa apenas o que foi registrado neste dispositivo e mantém L1–L10 em ordem fixa.</p>
+          </div>
+          <span class="status-pill is-warning">NÃO É MONITOR CLÍNICO</span>
+        </div>
+
+        <figure class="concept-figure wide-concept">
+          <img
+            src="./assets/tutorial/central-coordenador-v5.webp"
+            alt="Conceito visual de uma central de coordenação com dez leitos, oportunidades e histórico de intervenções.">
+          <figcaption><strong>CONCEITO</strong> · central online ilustrativa com dados fictícios; colaboração remota ainda não existe na versão local.</figcaption>
+        </figure>
+
+        <div class="opportunity-guide">
+          <article><span>01</span><strong>Abra “Oportunidades e histórico”</strong><p>Leia completude, pendências, atividades e lacunas por leito.</p></article>
+          <article><span>02</span><strong>Escolha a próxima oportunidade</strong><p>Considere risco clínico real e contexto à beira-leito; o painel não determina prioridade.</p></article>
+          <article><span>03</span><strong>Registre uma intervenção local</strong><p>Assuma como <strong>Coordenador</strong>, escolha leito, nota ou tarefa e descreva objetivamente.</p></article>
+          <article><span>04</span><strong>Confira a autoria</strong><p>Nome, CRM e data entram no histórico local. Tarefas aparecem no checklist do leito.</p></article>
+        </div>
+
+        <div class="boundary-box"><strong>Limite da coordenação local</strong><p>Uma nota ou tarefa não prescreve nem executa conduta. Outro dispositivo não verá a mudança automaticamente. O painel remoto contínuo depende da arquitetura institucional futura.</p></div>
+      </section>
+
+      <section id="ferramentas" class="section shell" aria-labelledby="tools-title">
+        <div class="section-number">09</div>
+        <div class="section-heading">
+          <p class="eyebrow">FERRAMENTAS DE BAIXA FRICÇÃO</p>
+          <h2 id="tools-title">Central, Radar, temas, comandos e Turbo.</h2>
+          <p>Use cada ferramenta como atalho operacional; nenhuma delas substitui vigilância clínica.</p>
+        </div>
+
+        <div class="tool-grid">
+          <article><span aria-hidden="true">N</span><h3>Central local</h3><p>Reúne eventos registrados, alertas da IA, read-back e falhas técnicas. Não recebe sinais vitais nem envia push clínico.</p></article>
+          <article><span aria-hidden="true">◎</span><h3>Radar</h3><p>Resume os dez leitos pelos fatos cadastrados: estado manual, alertas, lacunas e pendências.</p></article>
+          <article><span aria-hidden="true">⌘</span><h3>Ações rápidas</h3><p>Pressione <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>K</kbd>, pesquise leito ou ação e confirme com Enter.</p></article>
+          <article><span aria-hidden="true">T3</span><h3>Modo Turbo</h3><p>Processa até três análises simultâneas, confirma custo, aceita cancelamento e descarta resposta obsoleta.</p></article>
+          <article><span aria-hidden="true">◐</span><h3>Claro, escuro ou sistema</h3><p>Troque no cabeçalho. A preferência fica salva neste navegador.</p></article>
+          <article><span aria-hidden="true">↻</span><h3>Proteção de versão</h3><p>Se o leito mudar durante a análise, a resposta antiga é descartada para evitar mistura de contexto.</p></article>
+        </div>
+      </section>
+
+      <section id="transferir" class="section shell" aria-labelledby="transfer-title">
+        <div class="section-number">10</div>
+        <div class="section-heading">
+          <p class="eyebrow">SAÍDAS CONTROLADAS</p>
+          <h2 id="transfer-title">Escolha o formato pelo destino — e revise antes de enviar.</h2>
+          <p>Abra <strong>Exportar</strong> no cabeçalho para TXT, Markdown, WhatsApp e Cápsula. O botão de impressão do leito gera a opção PDF.</p>
+        </div>
+
+        <div class="format-grid">
+          <article><span>TXT</span><h3>Texto simples</h3><p>Leito ativo ou plantão preenchido. Útil quando o destino aceita apenas texto.</p><small>Baixa formatação; alta compatibilidade.</small></article>
+          <article><span>MD</span><h3>Markdown</h3><p>Estrutura títulos e listas para documentação técnica e leitura organizada.</p><small>Não envie dados clínicos para repositórios de código.</small></article>
+          <article><span>PDF</span><h3>Imprimir / Salvar PDF</h3><p>No leito, use o ícone de impressão. Na caixa do navegador, escolha <strong>Salvar como PDF</strong>.</p><small>Revise cabeçalho e conteúdo antes de salvar.</small></article>
+          <article><span>WA</span><h3>WhatsApp</h3><p>Prepara texto do leito ou plantão e abre o WhatsApp após confirmação explícita.</p><small>O app não escolhe contato e nunca envia sozinho.</small></article>
+        </div>
+
+        <div class="whatsapp-flow visual-card">
+          <div><span>1</span><strong>Escolha leito ou plantão</strong></div><i>→</i>
+          <div><span>2</span><strong>Leia o alerta de privacidade</strong></div><i>→</i>
+          <div><span>3</span><strong>Confirme a abertura externa</strong></div><i>→</i>
+          <div><span>4</span><strong>Revise, escolha o contato e envie</strong></div>
+        </div>
+        <p class="center-note"><strong>Limite:</strong> acima de 20.000 caracteres, use TXT/Markdown ou compartilhe leito por leito. Sempre siga a política institucional para comunicação de dados sensíveis.</p>
+      </section>
+
+      <section id="capsula" class="section shell" aria-labelledby="capsule-title">
+        <div class="section-number">11</div>
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow">CÁPSULA UTI · SNAPSHOT PORTÁTIL</p>
+            <h2 id="capsule-title">Um arquivo que o outro app consegue validar e renderizar.</h2>
+            <p>A extensão é <code>.capsula-uti.json</code>. Ela transporta o estado estruturado de um leito ou dos dez leitos — nunca uma sessão online viva.</p>
+          </div>
+          <span class="status-pill is-local">MÁXIMO 4 MiB</span>
+        </div>
+
+        <figure class="concept-figure wide-concept">
+          <img
+            src="./assets/tutorial/capsula-uti-v5.webp"
+            alt="Conceito visual de uma Cápsula UTI sendo transferida entre dispositivos, com opções de arquivo e comunicação.">
+          <figcaption><strong>CONCEITO</strong> · ecossistema futuro ilustrado com dados fictícios; na RC, a transferência exige exportar e importar manualmente.</figcaption>
+        </figure>
+
+        <div class="capsule-columns">
+          <article class="capsule-card is-included">
+            <span>INCLUI</span>
+            <ul class="check-list">
+              <li>Cabeçalho aplicável e leito ativo.</li>
+              <li>Texto clínico e dez linhas em ordem.</li>
+              <li>Checklist, timeline, alertas e lacunas.</li>
+              <li>Atividades e contexto necessário do snapshot.</li>
+            </ul>
+          </article>
+          <article class="capsule-card is-excluded">
+            <span>NÃO INCLUI</span>
+            <ul class="check-list">
+              <li>Chave da API ou arquivo <code>.env</code>.</li>
+              <li>Fotos, PDFs, documentos ou outros anexos binários.</li>
+              <li>Notificações locais ou cache confiável da IA.</li>
+              <li>Código executável, login ou sincronização remota.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="capsule-steps">
+          <article><span>1</span><div><strong>Exportar</strong><p>Abra <strong>Exportar → Cápsula UTI</strong> e escolha <strong>leito</strong> ou <strong>plantão</strong>.</p></div></article>
+          <article><span>2</span><div><strong>Transportar com canal aprovado</strong><p>O arquivo pode conter dado clínico sensível. Desidentifique e proteja conforme a instituição.</p></div></article>
+          <article><span>3</span><div><strong>Selecionar no outro app</strong><p>Escolha o arquivo <code>.capsula-uti.json</code>. O app valida tamanho, schema, leitos, datas e tipos.</p></div></article>
+          <article><span>4</span><div><strong>Escolher uma estratégia</strong><p>Leia o efeito de <strong>Mesclar</strong> e <strong>Substituir</strong> antes de confirmar.</p></div></article>
+          <article><span>5</span><div><strong>Reconciliar</strong><p>Confirme hospital, UTI, data e paciente; revise as dez linhas e refaça o read-back.</p></div></article>
+        </div>
+
+        <div class="strategy-grid">
+          <article class="strategy-card is-merge"><span>MESCLAR</span><h3>Troca somente os leitos da Cápsula</h3><p>Preserva os demais leitos. Uma Cápsula de leito mantém o cabeçalho atual e bloqueia divergências de hospital, UTI ou data.</p><strong>Remove os anexos locais dos leitos importados.</strong></article>
+          <article class="strategy-card is-replace"><span>SUBSTITUIR</span><h3>Cria o plantão a partir da Cápsula</h3><p>Troca o estado local anterior, incluindo os demais leitos e o contexto aplicável.</p><strong>Remove todos os anexos locais do plantão anterior.</strong></article>
+        </div>
+        <div class="memory-strip" role="note"><span aria-hidden="true">JSON</span><p><strong>Depois da importação:</strong> read-back fica inválido e anexos removidos não são recuperados pela Cápsula. Revise paciente/leito e reanexe somente o material correto.</p></div>
+      </section>
+
+      <section id="privacidade" class="section shell" aria-labelledby="privacy-title">
+        <div class="section-number">12</div>
+        <div class="section-heading">
+          <p class="eyebrow">PRIVACIDADE · LGPD · GOVERNANÇA</p>
+          <h2 id="privacy-title">Código pode ser sincronizado. Dados clínicos e chaves, não.</h2>
+          <p>O aplicativo reduz exposição acidental, mas a instituição ainda precisa definir base legal, finalidade, acesso, retenção, contratos, incidentes e responsabilidades.</p>
+        </div>
+
+        <div class="repository-map">
+          <article class="repo-card is-allowed">
+            <span>PODE IR PARA ESPELHOS DE PROJETO</span>
+            <h3>GitHub · Notion · Drive · iCloud</h3>
+            <ul class="check-list">
+              <li>Código sem segredo.</li>
+              <li>Documentação de produto e arquitetura.</li>
+              <li>Prompts sem informação clínica real.</li>
+              <li>Imagens demonstrativas com dados sintéticos.</li>
+              <li>Pacotes de release auditados e sem <code>.env</code>.</li>
+            </ul>
+          </article>
+          <article class="repo-card is-forbidden">
+            <span>NUNCA COLOQUE NESSES ESPELHOS</span>
+            <h3>Segredos e material assistencial</h3>
+            <ul class="check-list">
+              <li>Chave, token, <code>.env</code> ou ZIP que contenha credencial.</li>
+              <li>Nome, prontuário, exames, fotos ou documentos de paciente.</li>
+              <li>Cápsula UTI real ou exportação clínica.</li>
+              <li>Captura de tela identificável.</li>
+              <li>Logs ou prompts com conteúdo clínico.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="privacy-path visual-card">
+          <div><span>1</span><strong>Navegador local</strong><small>estado + anexos no IndexedDB</small></div><i>somente ao clicar</i>
+          <div><span>2</span><strong>Turbo Local</strong><small>sem API e sem envio externo</small></div><i>GPT somente se disponível no Mac</i>
+          <div><span>3</span><strong>GPT opcional</strong><small>loopback seguro + revisão humana</small></div>
+        </div>
+
+        <div class="callout is-danger"><span aria-hidden="true">!</span><div><strong>Antes de qualquer piloto clínico</strong><p>Conclua avaliação jurídica e regulatória, Relatório de Impacto à Proteção de Dados (RIPD), safety case, threat model, contrato com fornecedores, testes de segurança, acessibilidade, backup/restore, resposta a incidente e aprovação institucional.</p></div></div>
+      </section>
+
+      <section id="problemas" class="section shell" aria-labelledby="trouble-title">
+        <div class="section-number">13</div>
+        <div class="section-heading">
+          <p class="eyebrow">RESGATE RÁPIDO</p>
+          <h2 id="trouble-title">Veja o sintoma. Faça uma ação. Teste novamente.</h2>
+          <p>Abra somente o item relacionado ao seu problema.</p>
+        </div>
+
+        <div class="troubleshooting-list">
+          <details>
+            <summary><span>Node.js não encontrado ou versão antiga</span><b>+</b></summary>
+            <div><p>Execute <code>node --version</code>. Instale Node 20 ou superior, feche e reabra o Terminal. Depois repita <code>npm start</code>.</p></div>
+          </details>
+          <details>
+            <summary><span>“Permissão negada” ao abrir o inicializador</span><b>+</b></summary>
+            <div><p>Na pasta do app, execute <code>chmod +x start-mac.command</code> e depois <code>./start-mac.command</code>.</p></div>
+          </details>
+          <details>
+            <summary><span>Status “Turbo local · sem API”</span><b>+</b></summary>
+            <div><p>É um modo normal da v5.2. O aplicativo continua gerando dez linhas sem configurar chave. Anexos exigem revisão manual nesse modo.</p></div>
+          </details>
+          <details>
+            <summary><span>Mac ou iPhone não abre o aplicativo</span><b>+</b></summary>
+            <div><p>Mantenha o Terminal aberto. No Mac use <code>127.0.0.1:4173</code>. No iPhone, conecte à mesma rede Wi-Fi e use o endereço mostrado no Terminal terminando em <code>:4174</code>.</p></div>
+          </details>
+          <details>
+            <summary><span>Anexos ou dados locais “sumiram”</span><b>+</b></summary>
+            <div><p>Use o mesmo navegador, o mesmo perfil e o mesmo endereço <code>127.0.0.1:4173</code>. Modo privado e outro perfil criam outro armazenamento. Importações também podem remover anexos de propósito.</p></div>
+          </details>
+          <details>
+            <summary><span>A Cápsula foi rejeitada</span><b>+</b></summary>
+            <div><p>Confirme extensão <code>.capsula-uti.json</code>, tamanho máximo de 4 MiB e origem confiável. Divergência de hospital, UTI ou data bloqueia Mesclar tanto um leito quanto um plantão. Não edite o JSON manualmente se não conhecer o schema.</p></div>
+          </details>
+          <details>
+            <summary><span>A mensagem do WhatsApp ficou grande demais</span><b>+</b></summary>
+            <div><p>Acima de 20.000 caracteres, exporte TXT/Markdown ou envie leito por leito pelo canal institucional aprovado.</p></div>
+          </details>
+          <details>
+            <summary><span>Resposta da IA descartada ou nada mudou</span><b>+</b></summary>
+            <div><p>O leito pode ter mudado durante a análise ou a entrada pode ser idêntica à anterior. Revise o estado atual e renderize novamente somente se houver necessidade.</p></div>
+          </details>
+        </div>
+      </section>
+
+      <section id="checklist-final" class="final-section shell" aria-labelledby="final-title">
+        <div class="final-mark" aria-hidden="true">✓</div>
+        <p class="eyebrow">CHECKLIST FINAL · TESTE SINTÉTICO</p>
+        <h2 id="final-title">Pronto para demonstrar a v5 com segurança.</h2>
+        <div class="final-checks">
+          <span>✓ Node 20+ e servidor local ativos</span>
+          <span>✓ Turbo Local testado sem chave API</span>
+          <span>✓ Perfil, papel, modo e turno conferidos</span>
+          <span>✓ Plantonista vigente registrado</span>
+          <span>✓ Dez linhas revisadas por leito usado</span>
+          <span>✓ Arquivos selecionados de forma explícita</span>
+          <span>✓ Checklist, timeline e atividades atualizados</span>
+          <span>✓ Oportunidades usadas sem ranking</span>
+          <span>✓ Read-back concluído e válido</span>
+          <span>✓ Formato e canal de saída aprovados</span>
+          <span>✓ Cápsula reconciliada após importação</span>
+          <span>✓ Nenhum dado real em GitHub/Notion/Drive/iCloud</span>
+        </div>
+        <div class="hero-actions">
+          <a class="button button-primary" href="./">Abrir Passagem UTI</a>
+          <a class="button button-secondary" href="#mapa">Rever mapa de 60 segundos</a>
+        </div>
+        <p class="print-hint"><strong>Salvar este manual como PDF:</strong> pressione <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>P</kbd> e escolha “Salvar como PDF”. O layout de impressão foi preparado para A4.</p>
+        <p class="final-disclaimer">Ferramenta de apoio à comunicação. Não substitui prontuário, prescrição, monitorização, avaliação à beira-leito, política institucional ou julgamento médico.</p>
+      </section>
+    </main>
+
+    <footer class="tutorial-footer">
+      <div><strong>PASSAGEM UTI · v5 RC</strong><span>Tutorial Turbo TEMI Premium · dados demonstrativos sintéticos</span></div>
+      <nav aria-label="Links finais"><a href="#conteudo">Voltar ao topo</a><a href="#privacidade">Privacidade</a><a href="./">Aplicativo</a></nav>
+    </footer>
+  </body>
+</html>
