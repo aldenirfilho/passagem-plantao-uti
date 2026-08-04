@@ -1,0 +1,177 @@
+schema_version: "1.0"
+manifest_id: "passagem-uti-data-governance-v1"
+status: "proposal_not_executable"
+language: "pt-BR"
+
+scope:
+  product: "Passagem UTI"
+  baseline_current: "local-first sem sincronização entre dispositivos"
+  target_future: "backend online autenticado, multi-tenant e auditável"
+  warning: "Este manifesto não habilita sincronização e não contém segredos ou dados clínicos."
+
+status_labels:
+  current_local: "ATUAL - LOCAL"
+  future_online: "FUTURO - ONLINE"
+
+modes:
+  official_icu:
+    label: "UTI oficial"
+    persistence: "institution_controlled"
+    provisioning: "coordinator_or_enterprise_admin"
+    retention_policy_required: true
+  ad_hoc_shift:
+    label: "Plantão ad hoc"
+    persistence: "time_limited"
+    expiry_required: true
+    public_discovery: false
+    migration_to_official_requires_approval: true
+
+roles:
+  coordinator:
+    scopes: ["tenant", "unit"]
+    can_manage_members: true
+    unrestricted_clinical_access: false
+  diarist:
+    scopes: ["unit", "assigned_workspace"]
+    can_review_longitudinal_plan: true
+  shift_physician:
+    label: "Plantonista"
+    scopes: ["assigned_shift", "assigned_workspace"]
+    can_prepare_and_receive_handoff: true
+
+data_zones:
+  Z0_public:
+    contains_phi: false
+    contains_secrets: false
+    examples: ["README", "tutorial", "branding"]
+  Z1_internal:
+    contains_phi: false
+    contains_secrets: false
+    examples: ["PRD", "roadmap", "architecture decisions"]
+  Z2_operational_identity:
+    contains_personal_data: true
+    clinical_content_allowed: false
+  Z3_clinical_restricted:
+    contains_sensitive_health_data: true
+    approved_storage_required: true
+  Z4_secrets:
+    contains_credentials: true
+    only_destination: "managed_secret_manager"
+
+forbidden_destinations:
+  - destination: "github"
+    forbidden_data_zones: ["Z2_operational_identity", "Z3_clinical_restricted", "Z4_secrets"]
+  - destination: "notion"
+    forbidden_data_zones: ["Z2_operational_identity", "Z3_clinical_restricted", "Z4_secrets"]
+  - destination: "google_drive_or_icloud"
+    forbidden_data_zones: ["Z2_operational_identity", "Z3_clinical_restricted", "Z4_secrets"]
+  - destination: "unapproved_email_messaging_analytics"
+    forbidden_data_zones: ["Z2_operational_identity", "Z3_clinical_restricted", "Z4_secrets"]
+
+canonical_sources:
+  organization_and_membership: "identity_admin_service"
+  live_capsule: "capsule_service_database"
+  clinical_attachment: "approved_encrypted_object_storage"
+  secrets: "managed_secret_manager"
+  audit: "append_only_audit_store"
+  aggregate_metrics: "metrics_service"
+  product_documentation: "git_repository_without_phi_or_secrets"
+
+live_capsule:
+  required_ids:
+    - "tenant_id"
+    - "workspace_id"
+    - "capsule_id"
+    - "version_id"
+  components:
+    - "ten_topic_handoff"
+    - "timeline"
+    - "tasks"
+    - "attachment_references"
+    - "ai_review_signals"
+    - "readback_receipt"
+    - "provenance"
+  versioning:
+    published_versions_immutable: true
+    silent_overwrite_forbidden: true
+    last_write_wins_for_clinical_data: false
+    material_change_invalidates_readback: true
+  lifecycle:
+    - "draft"
+    - "reviewed"
+    - "published"
+    - "received"
+    - "superseded"
+    - "archived_or_deleted_per_policy"
+
+sync_protocol_future:
+  authentication_required: true
+  authorization_enforced_server_side: true
+  tenant_scope_derived_from_session: true
+  delta_cursor_required: true
+  idempotency_key_required_for_mutations: true
+  optimistic_concurrency_required: true
+  human_resolution_for_clinical_conflicts: true
+  server_clock_authoritative: true
+  offline_publish_without_reconciliation: false
+  audit_every_mutation: true
+
+security_controls:
+  mfa_required_for_clinical_access: true
+  rbac_roles: ["coordinator", "diarist", "shift_physician"]
+  encryption_in_transit: true
+  encryption_at_rest: true
+  secret_manager_required: true
+  tenant_isolation_tests_required: true
+  signed_short_lived_file_urls: true
+  malware_scan_and_quarantine: true
+  logs_must_exclude_phi_and_secrets: true
+
+ai_gateway:
+  server_side_only: true
+  minimize_payload: true
+  bind_to_capsule_version: true
+  validate_schema_and_context: true
+  discard_stale_or_wrong_context_response: true
+  autonomous_clinical_action: false
+  prompt_or_response_in_standard_telemetry: false
+
+privacy:
+  health_data_classification: "sensitive_personal_data"
+  ropa_required: true
+  ripd_required_before_real_data_pilot: true
+  legal_basis_decided_by_controller: true
+  international_transfer_assessment_required: true
+  retention_matrix_required: true
+  rights_workflow_required: true
+  incident_response_exercise_required: true
+
+metrics:
+  purpose: "opportunity_and_equity_improvement"
+  aggregate_only: true
+  minimum_group_threshold_required: true
+  individual_ranking_forbidden: true
+  punitive_use_forbidden: true
+  automated_compensation_or_scheduling_decisions: false
+  metric_dictionary_required: true
+
+go_live_gates:
+  - "clinical_safety_case_approved"
+  - "lgpd_ropa_ripd_and_contracts_approved"
+  - "multi_tenant_isolation_verified"
+  - "penetration_test_without_unaccepted_critical_or_high_findings"
+  - "secret_rotation_tested"
+  - "audit_and_incident_response_operational"
+  - "backup_restore_and_rollback_tested"
+  - "manual_mode_available_when_ai_or_network_fails"
+  - "pilot_scope_stop_criteria_and_support_approved"
+
+documentation:
+  canonical_policy: "DATA_GOVERNANCE_SYNC.md"
+  product_requirements: "PRD_V5.md"
+  architecture: "ARCHITECTURE_ONLINE.md"
+  privacy: "LGPD_PRIVACY.md"
+  safety: "CLINICAL_SAFETY_CASE.md"
+  security: "SECURITY_THREAT_MODEL.md"
+  launch: "LAUNCH_CHECKLIST.md"
+

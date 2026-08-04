@@ -1,0 +1,15 @@
+Copyright (c) 2026 aldenirfilho
+All rights reserved.
+
+This repository and its contents are proprietary. Public availability of the
+source code does not grant a license to copy, modify, distribute, sublicense,
+commercialize, host, or create derivative works. Any such use requires prior
+express written authorization from the copyright holder.
+
+The current release candidate may be evaluated only with fully synthetic data.
+It is not authorized for clinical use, patient data, medical decision-making,
+production deployment, or use as a medical record, prescription system, or
+medical device.
+
+Third-party components remain subject to their respective licenses.
+
